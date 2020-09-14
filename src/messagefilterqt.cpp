@@ -1,52 +1,52 @@
 #include "messagefilterqt.h"
 #include <QDebug>
 
-MessagefilterQt* MessagefilterQt::_singleton_instance = nullptr;
+QtMessageFilter* QtMessageFilter::_singleton_instance = nullptr;
 
-void MessagefilterQt::resetInstance(bool hide)
+void QtMessageFilter::resetInstance(bool hide)
 {
-    delete MessagefilterQt::_singleton_instance;
-    MessagefilterQt::_singleton_instance = new MessagefilterQt();
+    delete QtMessageFilter::_singleton_instance;
+    QtMessageFilter::_singleton_instance = new QtMessageFilter();
 
     if(!hide)
-        MessagefilterQt::_instance()->showDialog();
+        QtMessageFilter::_instance()->showDialog();
 }
 
-void MessagefilterQt::releaseInstance()
+void QtMessageFilter::releaseInstance()
 {
-    delete MessagefilterQt::_singleton_instance;
-    MessagefilterQt::_singleton_instance = nullptr;
+    delete QtMessageFilter::_singleton_instance;
+    QtMessageFilter::_singleton_instance = nullptr;
 }
 
-bool MessagefilterQt::good()
+bool QtMessageFilter::good()
 {
-    return (bool)MessagefilterQt::_singleton_instance;
+    return (bool)QtMessageFilter::_singleton_instance;
 }
 
-void MessagefilterQt::messageOutput(const QtMsgType type, const QMessageLogContext& context, const QString& msg)
+void QtMessageFilter::messageOutput(const QtMsgType type, const QMessageLogContext& context, const QString& msg)
 {
-    if(MessagefilterQt::good())
-        MessagefilterQt::_instance()->_message_output(type, context, msg);
+    if(QtMessageFilter::good())
+        QtMessageFilter::_instance()->_message_output(type, context, msg);
 //    else
     //        qDebug()<<msg;
 }
 
-void MessagefilterQt::hideDialog()
+void QtMessageFilter::hideDialog()
 {
-    MessagefilterQt::_instance()->hide();
+    QtMessageFilter::_instance()->hide();
 }
 
-void MessagefilterQt::showDialog()
+void QtMessageFilter::showDialog()
 {
-    MessagefilterQt::_instance()->show();
+    QtMessageFilter::_instance()->show();
 }
 
-void MessagefilterQt::moveFilterToThread(QThread* thread)
+void QtMessageFilter::moveFilterToThread(QThread* thread)
 {
-    MessagefilterQt::_instance()->moveToThread(thread);
+    QtMessageFilter::_instance()->moveToThread(thread);
 }
 
-MessagefilterQt::MessagefilterQt(QWidget *parent)
+QtMessageFilter::QtMessageFilter(QWidget *parent)
     : QDialog(parent),
       _debug(),
       _info(),
@@ -55,38 +55,73 @@ MessagefilterQt::MessagefilterQt(QWidget *parent)
       _last_id(0),
       _list(),
       _scroll_area(new QScrollArea(this)),
-      _layout_scroll_area(new QVBoxLayout()),
-      _widget_scroll_area(new QWidget(this)),
+      _widget_scroll_area(new QWidget()),
+      _vertical_layout_scroll_area(new QVBoxLayout(_widget_scroll_area)),
+      _horizontal_layout(new QHBoxLayout()),
+      _horizontal_spacer(),
       _cb_debug(new QCheckBox(this)),
       _cb_info(new QCheckBox(this)),
       _cb_warning(new QCheckBox(this)),
       _cb_critical(new QCheckBox(this)),
+      _vertical_layout_global(new QVBoxLayout()),
       _current_dialog(nullptr),
       _current_dialog_text(nullptr)
 
 {
+
+    _cb_debug->setFixedSize(20, 20);
+    _cb_info->setFixedSize(20, 20);
+    _cb_warning->setFixedSize(20, 20);
+    _cb_critical->setFixedSize(20, 20);
+
+    _cb_debug->setStyleSheet("QCheckBox::indicator { width : 20; height : 20; }\n"
+                             "QCheckBox::indicator::unchecked { image : url(:/share/icons/debug_off.png); }\n"
+                             "QCheckBox::indicator::checked { image : url(:/share/icons/debug_on.png); }");
+
+    _cb_info->setStyleSheet("QCheckBox::indicator { width : 20; height : 20; }\n"
+                            "QCheckBox::indicator::unchecked { image : url(:/share/icons/info_off.png); }\n"
+                            "QCheckBox::indicator::checked { image : url(:/share/icons/info_on.png); }");
+
+    _cb_warning->setStyleSheet("QCheckBox::indicator { width : 20; height : 20; }\n"
+                               "QCheckBox::indicator::unchecked { image : url(:/share/icons/warning_off.png); }\n"
+                               "QCheckBox::indicator::checked { image : url(:/share/icons/warning_on.png); }");
+
+    _cb_critical->setStyleSheet("QCheckBox::indicator { width : 20; height : 20; }\n"
+                                "QCheckBox::indicator::unchecked { image : url(:/share/icons/critical_off.png); }\n"
+                                "QCheckBox::indicator::checked { image : url(:/share/icons/critical_on.png); }");
+
+    for(uchar i=0; i<5; i++)
+    {
+        _horizontal_spacer[i] = new QSpacerItem(40, 20, QSizePolicy::Expanding, QSizePolicy::Minimum);
+    }
+
+    _horizontal_layout->addItem(_horizontal_spacer[0]);
+    _horizontal_layout->addWidget(_cb_debug);
+    _horizontal_layout->addItem(_horizontal_spacer[0]);
+    _horizontal_layout->addWidget(_cb_info);
+    _horizontal_layout->addItem(_horizontal_spacer[0]);
+    _horizontal_layout->addWidget(_cb_warning);
+    _horizontal_layout->addItem(_horizontal_spacer[0]);
+    _horizontal_layout->addWidget(_cb_critical);
+    _horizontal_layout->addItem(_horizontal_spacer[0]);
+
+
     _scroll_area->setWidgetResizable(true);
-    _scroll_area->setGeometry(0, 20, 400, 800);
-    this->resize(400, 820);
-
-    _cb_debug->setGeometry(64, 0, 20, 20);
-    _cb_info->setGeometry(148, 0, 20, 20);
-    _cb_warning->setGeometry(232, 0, 20, 20);
-    _cb_critical->setGeometry(316, 0, 20, 20);
-
-    _cb_debug->setStyleSheet(QString("QCheckBox { background-color : cyan; }") + '\n' +
-                           "QCheckBox::indicator {width: 20px; height: 20px;}");
-    _cb_info->setStyleSheet(QString("QCheckBox { background-color : #90ee90; }") + '\n' +
-                          "QCheckBox::indicator {width: 20px; height: 20px;}");
-    _cb_warning->setStyleSheet(QString("QCheckBox { background-color : yellow; }") + '\n' +
-                             "QCheckBox::indicator {width: 20px; height: 20px;}");
-    _cb_critical->setStyleSheet(QString("QCheckBox { background-color : red; }") + '\n' +
-                              "QCheckBox::indicator {width: 20px; height: 20px;}");
-
+    _widget_scroll_area->setGeometry(0, 0, 400, 800);
+    _widget_scroll_area->setLayout(_vertical_layout_scroll_area);
     _scroll_area->setWidget(_widget_scroll_area);
 
-    _widget_scroll_area->setLayout(_layout_scroll_area);
-//    this->layout()->addWidget(widgetScrollArea);
+
+
+//    delete this->layout();
+    _vertical_layout_global->addItem(_horizontal_layout);
+    _vertical_layout_global->addWidget(_scroll_area);
+
+    this->setLayout(_vertical_layout_global);
+
+    this->setMaximumSize(800, 1200);
+
+    this->setMinimumSize(400, 900);
 
     // This looks unecessary, I shall investigate another option
     connect(_cb_debug, &QCheckBox::released,
@@ -102,26 +137,28 @@ MessagefilterQt::MessagefilterQt(QWidget *parent)
     _cb_info->setChecked(true);
     _cb_warning->setChecked(true);
     _cb_critical->setChecked(true);
+
+
 }
 
-MessagefilterQt::~MessagefilterQt()
+QtMessageFilter::~QtMessageFilter()
 {
 
 }
 
-MessagefilterQt* MessagefilterQt::_instance()
+QtMessageFilter* QtMessageFilter::_instance()
 {
-    if(!MessagefilterQt::good()){
-        qWarning("MessagefilterQt::instance() is nullptr. Call Singleton::resetInstance()\n"
+    if(!QtMessageFilter::good()){
+        qWarning("MessagefilterQt::instance() is nullptr. Call MessagefilterQt::resetInstance()\n"
                  "before use any method of the class Singleton");
 
-        MessagefilterQt::resetInstance();
+        QtMessageFilter::resetInstance();
     }
-    return MessagefilterQt::_singleton_instance;
+    return QtMessageFilter::_singleton_instance;
 
 }
 
-void MessagefilterQt::_message_output(const QtMsgType type,
+void QtMessageFilter::_message_output(const QtMsgType type,
                                     const QMessageLogContext& context,
                                     const QString& msg)
 {
@@ -168,7 +205,7 @@ void MessagefilterQt::_message_output(const QtMsgType type,
 
     _list.append(QPair< QSharedPointer<MessageInfo>, MessageItem* >(messageInfo, item.get()));
     item->adjustSize();
-    _layout_scroll_area->addWidget(item.get());
+    _vertical_layout_scroll_area->addWidget(item.get());
     item->show();
 
     // Is this the best way of doing it?
@@ -179,7 +216,7 @@ void MessagefilterQt::_message_output(const QtMsgType type,
     item.take();
 }
 
-void MessagefilterQt::_create_dialog_with_message_info(const MessageInfo& info)
+void QtMessageFilter::_create_dialog_with_message_info(const MessageInfo& info)
 {
     if(!_current_dialog)
     {
@@ -224,7 +261,7 @@ void MessagefilterQt::_create_dialog_with_message_info(const MessageInfo& info)
     _current_dialog->show();
 }
 
-void MessagefilterQt::_unset_message(const QtMsgType typeMssage)
+void QtMessageFilter::_unset_message(const QtMsgType typeMssage)
 {
     for(auto i = _list.begin(); i!=_list.end();  )
     {
@@ -239,8 +276,9 @@ void MessagefilterQt::_unset_message(const QtMsgType typeMssage)
         }
     }
 }
-void MessagefilterQt::_set_message(const QtMsgType typeMessage)
+void QtMessageFilter::_set_message(const QtMsgType typeMessage)
 {
+    // simplify this
     switch(typeMessage)
     {
         case QtDebugMsg:
@@ -253,7 +291,23 @@ void MessagefilterQt::_set_message(const QtMsgType typeMessage)
                 item->setText(i->get()->message);
                 _list.append(QPair< QSharedPointer<MessageInfo>, MessageItem* >(*i, item));
                 item->adjustSize();
-                _layout_scroll_area->addWidget(item);
+
+                ulong id = i->get()->id;
+                MessageItem* itemAfter = nullptr;
+                for(auto n = _list.begin(); n!=_list.end(); ++n)
+                {
+                    if(n->first.get()->id > id)
+                    {
+                        itemAfter = n->second;
+                        break;
+                    }
+                }
+
+                if(itemAfter)
+                    _vertical_layout_scroll_area->insertWidget(_vertical_layout_scroll_area->indexOf(itemAfter), item);
+                else
+                    _vertical_layout_scroll_area->addWidget(item);
+
                 item->show();
 
                 // Is this the best way of doing it?
@@ -272,7 +326,23 @@ void MessagefilterQt::_set_message(const QtMsgType typeMessage)
                 item->setText(i->get()->message);
                 _list.append(QPair< QSharedPointer<MessageInfo>, MessageItem* >(*i, item));
                 item->adjustSize();
-                _layout_scroll_area->addWidget(item);
+
+                ulong id = i->get()->id;
+                MessageItem* itemAfter = nullptr;
+                for(auto n = _list.begin(); n!=_list.end(); ++n)
+                {
+                    if(n->first.get()->id > id)
+                    {
+                        itemAfter = n->second;
+                        break;
+                    }
+                }
+
+                if(itemAfter)
+                    _vertical_layout_scroll_area->insertWidget(_vertical_layout_scroll_area->indexOf(itemAfter), item);
+                else
+                    _vertical_layout_scroll_area->addWidget(item);
+
                 item->show();
 
                 // Is this the best way of doing it?
@@ -290,7 +360,23 @@ void MessagefilterQt::_set_message(const QtMsgType typeMessage)
                 item->setText(i->get()->message);
                 _list.append(QPair< QSharedPointer<MessageInfo>, MessageItem* >(*i, item));
                 item->adjustSize();
-                _layout_scroll_area->addWidget(item);
+
+                ulong id = i->get()->id;
+                MessageItem* itemAfter = nullptr;
+                for(auto n = _list.begin(); n!=_list.end(); ++n)
+                {
+                    if(n->first.get()->id > id)
+                    {
+                        itemAfter = n->second;
+                        break;
+                    }
+                }
+
+                if(itemAfter)
+                    _vertical_layout_scroll_area->insertWidget(_vertical_layout_scroll_area->indexOf(itemAfter), item);
+                else
+                    _vertical_layout_scroll_area->addWidget(item);
+
                 item->show();
 
                 // Is this the best way of doing it?
@@ -307,8 +393,23 @@ void MessagefilterQt::_set_message(const QtMsgType typeMessage)
                 item->setStyleSheet(styleSheet);
                 item->setText(i->get()->message);
                 _list.append(QPair< QSharedPointer<MessageInfo>, MessageItem* >(*i, item));
-                item->adjustSize();
-                _layout_scroll_area->addWidget(item);
+
+                ulong id = i->get()->id;
+                MessageItem* itemAfter = nullptr;
+                for(auto n = _list.begin(); n!=_list.end(); ++n)
+                {
+                    if(n->first.get()->id > id)
+                    {
+                        itemAfter = n->second;
+                        break;
+                    }
+                }
+
+                if(itemAfter)
+                    _vertical_layout_scroll_area->insertWidget(_vertical_layout_scroll_area->indexOf(itemAfter), item);
+                else
+                    _vertical_layout_scroll_area->addWidget(item);
+
                 item->show();
 
                 // Is this the best way of doing it?

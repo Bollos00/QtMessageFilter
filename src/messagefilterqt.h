@@ -7,10 +7,13 @@
 #include <QPushButton>
 #include <QScrollArea>
 #include <QVBoxLayout>
+#include <QHBoxLayout>
 #include <QDialog>
 #include <QPlainTextEdit>
 #include <QCheckBox>
 #include <QDateTime>
+#include <QSpacerItem>
+#include <QApplication>
 
 struct MessageInfo
 {
@@ -64,7 +67,7 @@ signals:
     void SIGNAL_released();
 };
 
-class MessagefilterQt : public QDialog
+class QtMessageFilter : public QDialog
 {
     Q_OBJECT
 
@@ -84,14 +87,14 @@ public:
 
 private:
 
-    MessagefilterQt(QWidget *parent = nullptr);
-    MessagefilterQt(const MessagefilterQt& that) = delete;
-    MessagefilterQt(MessagefilterQt&& that) = delete;
-    ~MessagefilterQt();;
+    QtMessageFilter(QWidget *parent = nullptr);
+    QtMessageFilter(const QtMessageFilter& that) = delete;
+    QtMessageFilter(QtMessageFilter&& that) = delete;
+    ~QtMessageFilter();;
 
-    static MessagefilterQt* _instance();
+    static QtMessageFilter* _instance();
 
-    static MessagefilterQt* _singleton_instance;
+    static QtMessageFilter* _singleton_instance;
 
 
     void _message_output(const QtMsgType type,
@@ -107,14 +110,22 @@ private:
 
     QList<  QPair< QSharedPointer<MessageInfo>, MessageItem* >  > _list;
 
-    QScrollArea* _scroll_area;
-    QVBoxLayout* _layout_scroll_area;
-    QWidget* _widget_scroll_area;
 
+    // Begin UI
+    QScrollArea* _scroll_area;
+    QWidget* _widget_scroll_area;
+    QVBoxLayout* _vertical_layout_scroll_area;
+
+    QHBoxLayout* _horizontal_layout;
+    QSpacerItem* _horizontal_spacer[5];
     QCheckBox* _cb_debug;
     QCheckBox* _cb_info;
     QCheckBox* _cb_warning;
     QCheckBox* _cb_critical;
+
+    QVBoxLayout* _vertical_layout_global;
+    // End UI
+
 
     QScopedPointer<QDialog> _current_dialog;
     QScopedPointer<QPlainTextEdit> _current_dialog_text;

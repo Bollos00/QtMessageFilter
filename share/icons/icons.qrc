@@ -1,0 +1,12 @@
+<RCC>
+    <qresource prefix="/share/icons">
+        <file>critical_off.png</file>
+        <file>critical_on.png</file>
+        <file>debug_off.png</file>
+        <file>debug_on.png</file>
+        <file>info_off.png</file>
+        <file>info_on.png</file>
+        <file>warning_off.png</file>
+        <file>warning_on.png</file>
+    </qresource>
+</RCC>
