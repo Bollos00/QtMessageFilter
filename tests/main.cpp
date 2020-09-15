@@ -1,4 +1,4 @@
-#include "messagefilterqt.h"
+#include "QtMessageFilter/qtmessagefilter.h"
 
 #include <QApplication>
 #include <QTimer>
