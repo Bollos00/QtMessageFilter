@@ -21,7 +21,6 @@ int main(int argc, char *argv[])
     QApplication a(argc, argv);
 
     QtMessageFilter::resetInstance();
-    qInstallMessageHandler(QtMessageFilter::messageOutput);
 
     QTimer* tmr = new QTimer();
     QObject::connect(tmr, &QTimer::timeout,
@@ -47,7 +46,7 @@ int main(int argc, char *argv[])
         k++;
     });
 
-    tmr->start(500);
+    tmr->start(100);
 
 
     return a.exec();

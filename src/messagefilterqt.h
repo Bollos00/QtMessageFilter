@@ -14,6 +14,7 @@
 #include <QDateTime>
 #include <QSpacerItem>
 #include <QApplication>
+#include <QFile>
 
 struct MessageInfo
 {
@@ -77,13 +78,9 @@ public:
     static void releaseInstance();
     static bool good();
 
-    static void messageOutput(const QtMsgType type,
-                              const QMessageLogContext& context,
-                              const QString& msg);
 
     static void hideDialog();
     static void showDialog();
-    static void moveFilterToThread(QThread* thread);
 
 private:
 
@@ -93,6 +90,10 @@ private:
     ~QtMessageFilter();;
 
     static QtMessageFilter* _instance();
+
+    static void _message_filter(const QtMsgType type,
+                              const QMessageLogContext& context,
+                              const QString& msg);
 
     static QtMessageFilter* _singleton_instance;
 
@@ -129,6 +130,9 @@ private:
 
     QScopedPointer<QDialog> _current_dialog;
     QScopedPointer<QPlainTextEdit> _current_dialog_text;
+
+
+    QScopedPointer<QFile> _log_file;
 
     void _create_dialog_with_message_info(const MessageInfo& _info);
 

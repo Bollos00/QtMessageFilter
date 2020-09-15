@@ -1,5 +1,6 @@
 #include "messagefilterqt.h"
 #include <QDebug>
+#include <QThread>
 
 QtMessageFilter* QtMessageFilter::_singleton_instance = nullptr;
 
@@ -9,13 +10,17 @@ void QtMessageFilter::resetInstance(bool hide)
     QtMessageFilter::_singleton_instance = new QtMessageFilter();
 
     if(!hide)
-        QtMessageFilter::_instance()->showDialog();
+        QtMessageFilter::showDialog();
+
+    qInstallMessageHandler(QtMessageFilter::_message_filter);
 }
 
 void QtMessageFilter::releaseInstance()
 {
     delete QtMessageFilter::_singleton_instance;
     QtMessageFilter::_singleton_instance = nullptr;
+
+    qInstallMessageHandler(0);
 }
 
 bool QtMessageFilter::good()
@@ -23,13 +28,6 @@ bool QtMessageFilter::good()
     return (bool)QtMessageFilter::_singleton_instance;
 }
 
-void QtMessageFilter::messageOutput(const QtMsgType type, const QMessageLogContext& context, const QString& msg)
-{
-    if(QtMessageFilter::good())
-        QtMessageFilter::_instance()->_message_output(type, context, msg);
-//    else
-    //        qDebug()<<msg;
-}
 
 void QtMessageFilter::hideDialog()
 {
@@ -39,11 +37,6 @@ void QtMessageFilter::hideDialog()
 void QtMessageFilter::showDialog()
 {
     QtMessageFilter::_instance()->show();
-}
-
-void QtMessageFilter::moveFilterToThread(QThread* thread)
-{
-    QtMessageFilter::_instance()->moveToThread(thread);
 }
 
 QtMessageFilter::QtMessageFilter(QWidget *parent)
@@ -65,7 +58,8 @@ QtMessageFilter::QtMessageFilter(QWidget *parent)
       _cb_critical(new QCheckBox(this)),
       _vertical_layout_global(new QVBoxLayout()),
       _current_dialog(nullptr),
-      _current_dialog_text(nullptr)
+      _current_dialog_text(nullptr),
+      _log_file(new QFile("QtMessageFilterLog.txt"))
 
 {
 
@@ -138,9 +132,10 @@ QtMessageFilter::QtMessageFilter(QWidget *parent)
     _cb_warning->setChecked(true);
     _cb_critical->setChecked(true);
 
-
+    _log_file->open(QIODevice::WriteOnly);
 }
 
+// Crashes on destructor
 QtMessageFilter::~QtMessageFilter()
 {
 
@@ -158,45 +153,94 @@ QtMessageFilter* QtMessageFilter::_instance()
 
 }
 
-void QtMessageFilter::_message_output(const QtMsgType type,
-                                    const QMessageLogContext& context,
-                                    const QString& msg)
+void QtMessageFilter::_message_filter(const QtMsgType type, const QMessageLogContext& context, const QString& msg)
 {
+    if(QtMessageFilter::good())
+        QtMessageFilter::_instance()->_message_output(type, context, msg);
+//    else
+    //        qDebug()<<msg;
+}
+
+void QtMessageFilter::_message_output(const QtMsgType type,
+                                      const QMessageLogContext& context,
+                                      const QString& msg)
+{
+    // Limit the size of the lists and create Log File of messages
+
     QScopedPointer<MessageItem> item( new MessageItem(this) );
     QSharedPointer<MessageInfo> messageInfo( new MessageInfo(type, context, msg, _last_id, QDateTime::currentDateTime()) );
+
+    QTextStream streamLog(_log_file.get());
+
+    streamLog << "<<<<<<<<<<<<<<<" << messageInfo->id << "<<<<<<<<<<<<<<<\n";
+
+    streamLog << "\\origin:\n" <<
+                 messageInfo->fileName << " " << QString::number(messageInfo->line) << '\n' << '\n' <<
+
+                 "\\function_call:\n" <<
+                 messageInfo->function << '\n' << '\n' <<
+
+                 "\\category:\n" <<
+                 messageInfo->category << '\n' << '\n' <<
+
+                 "\\time_date:\n" <<
+                 messageInfo->dateTime.toString(Qt::ISODate) << '\n' << '\n';
 
     switch (type)
     {
         case QtDebugMsg:
+            streamLog << "\\debug\\id" << messageInfo->id << ": \n" <<
+                         messageInfo->message + '\n';
+            streamLog << ">>>>>>>>>>>>>>>" << messageInfo->id << ">>>>>>>>>>>>>>>\n";
+
             _debug.append(messageInfo);
-//            qDebug()<<msg;
+
             if(!_cb_debug->isChecked())
                 return;
             item->setStyleSheet("QLabel { background-color : black; color : cyan; }");
             break;
 
         case QtInfoMsg:
+            streamLog << "\\info\\id" << messageInfo->id << ": \n" <<
+                         messageInfo->message + '\n';
+            streamLog << ">>>>>>>>>>>>>>>" << messageInfo->id << ">>>>>>>>>>>>>>>\n";
+
             _info.append(messageInfo);
+
             if(!_cb_info->isChecked())
                 return;
             item->setStyleSheet("QLabel { background-color : black; color : #90ee90; }"); // light green font color
             break;
 
         case QtWarningMsg:
+            streamLog << "\\warning\\id" << messageInfo->id << ": \n" <<
+                         messageInfo->message + '\n';
+            streamLog << ">>>>>>>>>>>>>>>" << messageInfo->id << ">>>>>>>>>>>>>>>\n";
+
             _warning.append(messageInfo);
+
             if(!_cb_warning->isChecked())
                 return;
             item->setStyleSheet("QLabel { background-color : black; color : yellow; }");
             break;
 
         case QtCriticalMsg:
+            streamLog << "\\critical\\id" << messageInfo->id << ": \n" <<
+                         messageInfo->message + '\n';
+            streamLog << ">>>>>>>>>>>>>>>" << messageInfo->id << ">>>>>>>>>>>>>>>\n";
+
             _critical.append(messageInfo);
+
             if(!_cb_critical->isChecked())
                 return;
             item->setStyleSheet("QLabel { background-color : black; color : red; }");
             break;
 
         case QtFatalMsg:
+            streamLog << "\\fatal\\id" << messageInfo->id << ": \n" <<
+                         messageInfo->message + '\n';
+            streamLog << ">>>>>>>>>>>>>>>" << messageInfo->id << ">>>>>>>>>>>>>>>\n";
+
             qFatal("%s", QString("Fatal: " + msg).toLatin1().data());
             return;
     }
@@ -246,12 +290,10 @@ void QtMessageFilter::_create_dialog_with_message_info(const MessageInfo& info)
                 "Category: \n" +
                 info.category + '\n' + '\n' +
 
-                "id: " + QString::number(info.id) + '\n' + '\n' +
-
                 "Time: " + '\n' +
                 info.dateTime.toString(Qt::ISODate) + '\n' + '\n' +
 
-                typeStr + " message: \n" +
+                typeStr + " message " + info.id + ": \n" +
                 info.message
 
              );
