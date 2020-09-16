@@ -7,10 +7,10 @@
 
 QtMessageFilter* QtMessageFilter::m_singleton_instance = nullptr;
 
-void QtMessageFilter::resetInstance(bool hide)
+void QtMessageFilter::resetInstance(QWidget* parent, bool hide)
 {
     delete QtMessageFilter::m_singleton_instance;
-    QtMessageFilter::m_singleton_instance = new QtMessageFilter();
+    QtMessageFilter::m_singleton_instance = new QtMessageFilter(parent);
 
     if(!hide)
         QtMessageFilter::showDialog();
@@ -20,17 +20,27 @@ void QtMessageFilter::resetInstance(bool hide)
 
 void QtMessageFilter::releaseInstance()
 {
-    delete QtMessageFilter::m_singleton_instance;
-    QtMessageFilter::m_singleton_instance = nullptr;
+    if(!QtMessageFilter::good())
+        return;
 
     qInstallMessageHandler(0);
+
+//    QtMessageFilter* inst = QtMessageFilter::m_singleton_instance;
+//    for(auto i = inst ->m_list.begin(); i!=inst ->m_list.end();  )
+//    {
+//        delete i->second;
+//        i = inst ->m_list.erase(i);
+
+//    }
+
+    delete QtMessageFilter::m_singleton_instance;
+    QtMessageFilter::m_singleton_instance = nullptr;
 }
 
 bool QtMessageFilter::good()
 {
     return (bool)QtMessageFilter::m_singleton_instance;
 }
-
 
 void QtMessageFilter::hideDialog()
 {
@@ -42,6 +52,21 @@ void QtMessageFilter::showDialog()
     QtMessageFilter::f_instance()->show();
 }
 
+bool QtMessageFilter::isDialogVisible()
+{
+    return QtMessageFilter::f_instance()->isVisible();
+}
+
+void QtMessageFilter::closeEvent(QCloseEvent* event)
+{
+    this->hide();
+}
+
+void QtMessageFilter::reject()
+{
+    this->hide();
+}
+
 QtMessageFilter::QtMessageFilter(QWidget *parent)
     : QDialog(parent),
       m_debug(),
@@ -50,18 +75,18 @@ QtMessageFilter::QtMessageFilter(QWidget *parent)
       m_critical(),
       m_last_id(0),
       m_list(),
-      m_scroll_area(new QScrollArea(this)),
+      m_scroll_area(new QScrollArea()),
       m_widget_scroll_area(new QWidget()),
       m_vertical_layout_scroll_area(new QVBoxLayout(m_widget_scroll_area)),
       m_horizontal_layout(new QHBoxLayout()),
       m_horizontal_spacer(),
-      m_cb_debug(new QCheckBox(this)),
-      m_cb_info(new QCheckBox(this)),
-      m_cb_warning(new QCheckBox(this)),
-      m_cb_critical(new QCheckBox(this)),
+      m_cb_debug(new QCheckBox()),
+      m_cb_info(new QCheckBox()),
+      m_cb_warning(new QCheckBox()),
+      m_cb_critical(new QCheckBox()),
       m_vertical_layout_global(new QVBoxLayout()),
-      m_current_dialog(nullptr),
-      m_current_dialog_text(nullptr),
+      m_current_dialog(new QDialog(this)),
+      m_current_dialog_text(new QPlainTextEdit(m_current_dialog)),
       m_log_file(new QFile()),
       m_maximum_itens_size(100),
       m_maximum_message_info_size(100)
@@ -80,7 +105,7 @@ QtMessageFilter::QtMessageFilter(QWidget *parent)
     m_log_file->open(QIODevice::WriteOnly);
 }
 
-// Crashes on destructor
+// Crashes on destructor when it has parent
 QtMessageFilter::~QtMessageFilter()
 {
 
@@ -95,7 +120,6 @@ QtMessageFilter* QtMessageFilter::f_instance()
         QtMessageFilter::resetInstance();
     }
     return QtMessageFilter::m_singleton_instance;
-
 }
 
 void QtMessageFilter::f_configure_ui()
@@ -139,7 +163,6 @@ void QtMessageFilter::f_configure_ui()
 
     m_scroll_area->setWidgetResizable(true);
     m_widget_scroll_area->setGeometry(0, 0, 400, 800);
-    m_widget_scroll_area->setLayout(m_vertical_layout_scroll_area);
     m_scroll_area->setWidget(m_widget_scroll_area);
 
 
@@ -169,6 +192,8 @@ void QtMessageFilter::f_configure_ui()
     m_cb_warning->setChecked(true);
     m_cb_critical->setChecked(true);
 
+    m_current_dialog_text->setReadOnly(true);
+
     this->setWindowTitle("Qt Message Filter");
 }
 
@@ -186,7 +211,7 @@ void QtMessageFilter::f_message_output(const QtMsgType type,
 {
     // Limit the size of the lists and create Log File of messages
 
-    QScopedPointer<MessageItem> itemScope( new MessageItem(this) );
+    QScopedPointer<MessageItem> itemScope( new MessageItem() );
     QSharedPointer<MessageInfo> messageInfo( new MessageInfo(type, context, msg, m_last_id, QDateTime::currentDateTime()) );
 
     QTextStream streamLog(m_log_file.get());
@@ -309,13 +334,6 @@ void QtMessageFilter::f_message_output(const QtMsgType type,
 
 void QtMessageFilter::f_create_dialog_with_message_info(const MessageInfo& info)
 {
-    if(!m_current_dialog)
-    {
-        m_current_dialog.reset(new QDialog());
-        m_current_dialog_text.reset(new QPlainTextEdit(m_current_dialog.get()));
-        m_current_dialog_text->setReadOnly(true);
-    }
-
     QString typeStr;
     if(info.type == QtDebugMsg)
         typeStr = "Debug";
@@ -405,7 +423,7 @@ void QtMessageFilter::f_set_message(const QtMsgType typeMessage)
         i!=listOfMessageType->begin(); )
     {
         --i;
-        MessageItem* item = new MessageItem(this);
+        MessageItem* item = new MessageItem();
         item->setStyleSheet(styleSheet);
         item->setText(i->get()->message);
         m_list.append(QPair< QSharedPointer<MessageInfo>, MessageItem* >(*i, item));

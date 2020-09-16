@@ -65,20 +65,27 @@ class QtMessageFilter : public QDialog
 
 public:
 
-    static void resetInstance(bool hideDialog = false);
+    static void resetInstance(QWidget* parent = nullptr, bool hideDialog = false);
     static void releaseInstance();
     static bool good();
 
 
     static void hideDialog();
     static void showDialog();
+    static bool isDialogVisible();
+
+protected:
+
+    void closeEvent(QCloseEvent *event = nullptr);
+    void reject();
+
 
 private:
 
     QtMessageFilter(QWidget *parent = nullptr);
     QtMessageFilter(const QtMessageFilter& that) = delete;
     QtMessageFilter(QtMessageFilter&& that) = delete;
-    ~QtMessageFilter();;
+    ~QtMessageFilter();
 
     static QtMessageFilter* f_instance();
     static QtMessageFilter* m_singleton_instance;
@@ -125,8 +132,8 @@ private:
     // End UI
 
 
-    QScopedPointer<QDialog> m_current_dialog;
-    QScopedPointer<QPlainTextEdit> m_current_dialog_text;
+    QDialog* m_current_dialog;
+    QPlainTextEdit* m_current_dialog_text;
 
 
     QScopedPointer<QFile> m_log_file;
