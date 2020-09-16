@@ -46,7 +46,7 @@ int main(int argc, char *argv[])
         k++;
     });
 
-    tmr->start(100);
+    tmr->start(500);
 
 
     return a.exec();

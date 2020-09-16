@@ -33,24 +33,10 @@ struct MessageInfo
     MessageInfo(const QtMsgType thatType,
                 const QMessageLogContext& thatContext,
                 const QString& thatMessage,
-                const unsigned long thatId,
-                const QDateTime thatDateTime) :
-        type(thatType),
-        line(thatContext.line),
-        fileName(thatContext.file),
-        function(thatContext.function),
-        category(thatContext.category),
-        message(thatMessage),
-        id(thatId),
-        dateTime(thatDateTime)
-    {
+                const ulong thatId,
+                const QDateTime thatDateTime);
 
-    }
-
-    ~MessageInfo()
-    {
-//        qDebug(Q_FUNC_INFO);
-    }
+    ~MessageInfo();
 };
 
 class MessageItem : public QLabel
@@ -58,14 +44,19 @@ class MessageItem : public QLabel
     Q_OBJECT
 public:
     explicit MessageItem(QWidget* parent = nullptr);
+    ~MessageItem();
+
+private:
+    QScopedPointer<QTimer> m_tmr_pressed;
 
 private slots:
     void mousePressEvent(QMouseEvent *e = nullptr);
     void mouseReleaseEvent(QMouseEvent *e = nullptr);
 
 signals:
-    void SIGNAL_pressed();
-    void SIGNAL_released();
+    void SIGNAL_leftButtonPressed();
+    void SIGNAL_leftButtonReleased();
+    void SIGNAL_rightButtonPressed();
 };
 
 class QtMessageFilter : public QDialog

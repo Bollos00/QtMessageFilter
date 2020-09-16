@@ -2,6 +2,8 @@
 #include <QDebug>
 #include <QThread>
 #include <QShortcut>
+#include <QClipboard>
+#include <QTimer>
 
 QtMessageFilter* QtMessageFilter::m_singleton_instance = nullptr;
 
@@ -184,7 +186,7 @@ void QtMessageFilter::f_message_output(const QtMsgType type,
 {
     // Limit the size of the lists and create Log File of messages
 
-    QScopedPointer<MessageItem> item( new MessageItem(this) );
+    QScopedPointer<MessageItem> itemScope( new MessageItem(this) );
     QSharedPointer<MessageInfo> messageInfo( new MessageInfo(type, context, msg, m_last_id, QDateTime::currentDateTime()) );
 
     QTextStream streamLog(m_log_file.get());
@@ -216,7 +218,7 @@ void QtMessageFilter::f_message_output(const QtMsgType type,
 
             if(!m_cb_debug->isChecked())
                 return;
-            item->setStyleSheet("QLabel { background-color : black; color : cyan; }");
+            itemScope->setStyleSheet("QLabel { background-color : black; color : cyan; }");
             break;
 
         case QtInfoMsg:
@@ -230,7 +232,7 @@ void QtMessageFilter::f_message_output(const QtMsgType type,
 
             if(!m_cb_info->isChecked())
                 return;
-            item->setStyleSheet("QLabel { background-color : black; color : #90ee90; }"); // light green font color
+            itemScope->setStyleSheet("QLabel { background-color : black; color : #90ee90; }"); // light green font color
             break;
 
         case QtWarningMsg:
@@ -244,7 +246,7 @@ void QtMessageFilter::f_message_output(const QtMsgType type,
 
             if(!m_cb_warning->isChecked())
                 return;
-            item->setStyleSheet("QLabel { background-color : black; color : yellow; }");
+            itemScope->setStyleSheet("QLabel { background-color : black; color : yellow; }");
             break;
 
         case QtCriticalMsg:
@@ -254,11 +256,11 @@ void QtMessageFilter::f_message_output(const QtMsgType type,
 
             m_critical.append(messageInfo);
             if((ulong)m_critical.size() > m_maximum_message_info_size)
-                m_warning.removeFirst();
+                m_critical.removeFirst();
 
             if(!m_cb_critical->isChecked())
                 return;
-            item->setStyleSheet("QLabel { background-color : black; color : red; }");
+            itemScope->setStyleSheet("QLabel { background-color : black; color : red; }");
             break;
 
         case QtFatalMsg:
@@ -270,17 +272,36 @@ void QtMessageFilter::f_message_output(const QtMsgType type,
             return; // Note: never gets here, end on fatal (line above)
     }
 
+    MessageItem* item = itemScope.take();
+
     item->setText(msg);
 
-    m_list.append(QPair< QSharedPointer<MessageInfo>, MessageItem* >(messageInfo, item.get()));
+    m_list.append(QPair< QSharedPointer<MessageInfo>, MessageItem* >(messageInfo, item));
     item->adjustSize();
-    m_vertical_layout_scroll_area->addWidget(item.get());
+    m_vertical_layout_scroll_area->addWidget(item);
     item->show();
     // Is this the best way of doing it?
-    connect(item.get(), &MessageItem::SIGNAL_pressed, [this, messageInfo]{f_create_dialog_with_message_info(*messageInfo);});
-//    connect(item, &MessageItem::SIGNAL_released, [this]{currentDialog.reset();});
+    connect(item, &MessageItem::SIGNAL_leftButtonReleased, [this, messageInfo]{f_create_dialog_with_message_info(*messageInfo);});
+    connect(item, &MessageItem::SIGNAL_rightButtonPressed,
+            [this, messageInfo, item]
+    {
+        m_list.removeOne(QPair< QSharedPointer<MessageInfo>, MessageItem* >(messageInfo, item));
+
+        if(messageInfo.get()->type == QtDebugMsg)
+            m_debug.removeOne(messageInfo);
+        else if(messageInfo.get()->type == QtInfoMsg)
+            m_info.removeOne(messageInfo);
+        else if(messageInfo.get()->type == QtWarningMsg)
+            m_warning.removeOne(messageInfo);
+        else
+            m_critical.removeOne(messageInfo);
+
+        item->disconnect();
+        item->deleteLater();
+    });
+
+
     m_last_id++;
-    item.take();
 
     if((ulong)m_vertical_layout_scroll_area->count() > m_maximum_itens_size)
         delete m_vertical_layout_scroll_area->takeAt(0);
@@ -409,24 +430,98 @@ void QtMessageFilter::f_set_message(const QtMsgType typeMessage)
         item->show();
 
         // Is this the best way of doing it?
-        connect(item, &MessageItem::SIGNAL_pressed, [this, i]{f_create_dialog_with_message_info(*(i->get()));});
+        connect(item, &MessageItem::SIGNAL_leftButtonReleased, [this, i]{f_create_dialog_with_message_info(*(i->get()));});
+
+        connect(item, &MessageItem::SIGNAL_rightButtonPressed,
+                [this, i, item]
+        {
+            m_list.removeOne(QPair< QSharedPointer<MessageInfo>, MessageItem* >(*i, item));
+
+            if(i->get()->type == QtDebugMsg)
+                m_debug.removeOne(*i);
+            else if(i->get()->type == QtInfoMsg)
+                m_info.removeOne(*i);
+            else if(i->get()->type == QtWarningMsg)
+                m_warning.removeOne(*i);
+            else
+                m_critical.removeOne(*i);
+
+            Q_ASSERT(i->isNull());
+        });
     }
 }
 
 
-MessageItem::MessageItem(QWidget* parent)
-{
+MessageItem::MessageItem(QWidget* parent):
+    m_tmr_pressed(nullptr)
+{}
 
+MessageItem::~MessageItem()
+{
+    if(m_tmr_pressed && m_tmr_pressed->isActive())
+        m_tmr_pressed->stop();
 }
 
 void MessageItem::mousePressEvent(QMouseEvent* e)
 {
-    this->setStyleSheet(this->styleSheet().replace("background-color : black", "background-color : blue", Qt::CaseInsensitive));
-    emit SIGNAL_pressed();
+    if(e->button() == Qt::LeftButton)
+    {
+        this->setStyleSheet(this->styleSheet().replace("background-color : black", "background-color : blue", Qt::CaseInsensitive));
+
+        m_tmr_pressed.reset(new QTimer());
+        connect(m_tmr_pressed.get(),
+                &QTimer::timeout,
+                [this]
+        {
+            QApplication::clipboard()->setText(this->text());
+            m_tmr_pressed->stop();
+            m_tmr_pressed->disconnect();
+            m_tmr_pressed.reset();
+            this->setStyleSheet(this->styleSheet().replace("background-color : blue", "background-color : black", Qt::CaseInsensitive));
+        });
+        m_tmr_pressed->start(500);
+
+        emit SIGNAL_leftButtonPressed();
+    }
+    else if(e->button() == Qt::RightButton)
+    {
+        emit SIGNAL_rightButtonPressed();
+    }
 }
 
 void MessageItem::mouseReleaseEvent(QMouseEvent* e)
 {
-    this->setStyleSheet(this->styleSheet().replace("background-color : blue", "background-color : black", Qt::CaseInsensitive));
-    emit SIGNAL_released();
+    if(e->button() == Qt::LeftButton)
+    {
+        if(m_tmr_pressed)
+        {
+            m_tmr_pressed->stop();
+            m_tmr_pressed->disconnect();
+            m_tmr_pressed.reset();
+            this->setStyleSheet(this->styleSheet().replace("background-color : blue", "background-color : black", Qt::CaseInsensitive));
+            emit SIGNAL_leftButtonReleased();
+        }
+    }
+}
+
+MessageInfo::MessageInfo(const QtMsgType thatType,
+                         const QMessageLogContext& thatContext,
+                         const QString& thatMessage,
+                         const ulong thatId,
+                         const QDateTime thatDateTime) :
+    type(thatType),
+    line(thatContext.line),
+    fileName(thatContext.file),
+    function(thatContext.function),
+    category(thatContext.category),
+    message(thatMessage),
+    id(thatId),
+    dateTime(thatDateTime)
+{
+
+}
+
+MessageInfo::~MessageInfo()
+{
+//    qDebug(Q_FUNC_INFO);
 }
