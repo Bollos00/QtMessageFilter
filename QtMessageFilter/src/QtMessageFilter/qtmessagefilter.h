@@ -89,55 +89,59 @@ private:
     QtMessageFilter(QtMessageFilter&& that) = delete;
     ~QtMessageFilter();;
 
-    static QtMessageFilter* _instance();
+    static QtMessageFilter* f_instance();
+    static QtMessageFilter* m_singleton_instance;
 
-    static void _message_filter(const QtMsgType type,
+    void f_configure_ui();
+
+    static void f_message_filter(const QtMsgType type,
                               const QMessageLogContext& context,
                               const QString& msg);
 
-    static QtMessageFilter* _singleton_instance;
-
-
-    void _message_output(const QtMsgType type,
+    void f_message_output(const QtMsgType type,
                          const QMessageLogContext& context,
                          const QString& msg);
 
-    QList<QSharedPointer<MessageInfo>> _debug;
-    QList<QSharedPointer<MessageInfo>> _info;
-    QList<QSharedPointer<MessageInfo>> _warning;
-    QList<QSharedPointer<MessageInfo>> _critical;
+    void f_create_dialog_with_message_info(const MessageInfo& _info);
 
-    ulong _last_id;
+    void f_unset_message(const QtMsgType typeMssage);
+    void f_set_message(const QtMsgType typeMessage);
 
-    QList<  QPair< QSharedPointer<MessageInfo>, MessageItem* >  > _list;
+
+    QList<QSharedPointer<MessageInfo>> m_debug;
+    QList<QSharedPointer<MessageInfo>> m_info;
+    QList<QSharedPointer<MessageInfo>> m_warning;
+    QList<QSharedPointer<MessageInfo>> m_critical;
+
+    ulong m_last_id;
+
+    QList<  QPair< QSharedPointer<MessageInfo>, MessageItem* >  > m_list;
 
 
     // Begin UI
-    QScrollArea* _scroll_area;
-    QWidget* _widget_scroll_area;
-    QVBoxLayout* _vertical_layout_scroll_area;
+    QScrollArea* m_scroll_area;
+    QWidget* m_widget_scroll_area;
+    QVBoxLayout* m_vertical_layout_scroll_area;
 
-    QHBoxLayout* _horizontal_layout;
-    QSpacerItem* _horizontal_spacer[5];
-    QCheckBox* _cb_debug;
-    QCheckBox* _cb_info;
-    QCheckBox* _cb_warning;
-    QCheckBox* _cb_critical;
+    QHBoxLayout* m_horizontal_layout;
+    QSpacerItem* m_horizontal_spacer[5];
+    QCheckBox* m_cb_debug;
+    QCheckBox* m_cb_info;
+    QCheckBox* m_cb_warning;
+    QCheckBox* m_cb_critical;
 
-    QVBoxLayout* _vertical_layout_global;
+    QVBoxLayout* m_vertical_layout_global;
     // End UI
 
 
-    QScopedPointer<QDialog> _current_dialog;
-    QScopedPointer<QPlainTextEdit> _current_dialog_text;
+    QScopedPointer<QDialog> m_current_dialog;
+    QScopedPointer<QPlainTextEdit> m_current_dialog_text;
 
 
-    QScopedPointer<QFile> _log_file;
+    QScopedPointer<QFile> m_log_file;
 
-    void _create_dialog_with_message_info(const MessageInfo& _info);
 
-    void _unset_message(const QtMsgType typeMssage);
-    void _set_message(const QtMsgType typeMessage);
-
+    const ulong m_maximum_itens_size;
+    const ulong m_maximum_message_info_size;
 };
 #endif // MESSAGEFILTERQT_H
