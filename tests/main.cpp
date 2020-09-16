@@ -46,13 +46,12 @@ public:
 
     ~TestWidget()
     {
-        qApp->quit();
+//        qApp->quit();
     }
 
 private:
     QLabel* l;
     QPushButton* pb;
-
 };
 
 
@@ -61,7 +60,7 @@ int main(int argc, char *argv[])
     QApplication a(argc, argv);
 
     TestWidget* w = new TestWidget();
-    QtMessageFilter::resetInstance(/*w*/);
+    QtMessageFilter::resetInstance(w);
 
     QTimer* tmr = new QTimer();
     QObject::connect(tmr, &QTimer::timeout,

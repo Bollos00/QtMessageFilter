@@ -57,6 +57,11 @@ bool QtMessageFilter::isDialogVisible()
     return QtMessageFilter::f_instance()->isVisible();
 }
 
+void QtMessageFilter::setInstanceParent(QWidget* parent)
+{
+    QtMessageFilter::f_instance()->setParent(parent);
+}
+
 void QtMessageFilter::closeEvent(QCloseEvent* event)
 {
     this->hide();
@@ -75,16 +80,16 @@ QtMessageFilter::QtMessageFilter(QWidget *parent)
       m_critical(),
       m_last_id(0),
       m_list(),
-      m_scroll_area(new QScrollArea()),
+      m_vertical_layout_global(new QVBoxLayout(this)),
+      m_scroll_area(new QScrollArea(this)),
       m_widget_scroll_area(new QWidget()),
       m_vertical_layout_scroll_area(new QVBoxLayout(m_widget_scroll_area)),
       m_horizontal_layout(new QHBoxLayout()),
       m_horizontal_spacer(),
-      m_cb_debug(new QCheckBox()),
-      m_cb_info(new QCheckBox()),
-      m_cb_warning(new QCheckBox()),
-      m_cb_critical(new QCheckBox()),
-      m_vertical_layout_global(new QVBoxLayout()),
+      m_cb_debug(new QCheckBox(this)),
+      m_cb_info(new QCheckBox(this)),
+      m_cb_warning(new QCheckBox(this)),
+      m_cb_critical(new QCheckBox(this)),
       m_current_dialog(new QDialog(this)),
       m_current_dialog_text(new QPlainTextEdit(m_current_dialog)),
       m_log_file(new QFile()),
@@ -103,12 +108,29 @@ QtMessageFilter::QtMessageFilter(QWidget *parent)
     if(m_log_file->remove())
         m_log_file->setFileName("QtMessageFilterLog.txt");
     m_log_file->open(QIODevice::WriteOnly);
+
+    // Log File Begin
+    {
+        QTextStream stream(m_log_file.get());
+        stream << "\\BEGIN " << QDateTime::currentDateTime().toString(Qt::ISODate)
+               << "\n\n\n";
+    }
 }
 
-// Crashes on destructor when it has parent
 QtMessageFilter::~QtMessageFilter()
 {
+    // We have a little memory leak problem here, but without this
+    //  line of code, the application crashes on destructor. Since
+    //  we are ending the application at this point, it should not
+    //  be a problem
+    m_horizontal_layout->setParent(nullptr);
 
+    // Log File End
+    {
+        QTextStream stream(m_log_file.get());
+        stream << "\n\n\n"
+               << "\\END " << QDateTime::currentDateTime().toString(Qt::ISODate);
+    }
 }
 
 QtMessageFilter* QtMessageFilter::f_instance()
@@ -168,7 +190,7 @@ void QtMessageFilter::f_configure_ui()
 
 
 //    delete this->layout();
-    m_vertical_layout_global->addItem(m_horizontal_layout);
+    m_vertical_layout_global->addLayout(m_horizontal_layout);
     m_vertical_layout_global->addWidget(m_scroll_area);
 
     this->setLayout(m_vertical_layout_global);
@@ -211,7 +233,7 @@ void QtMessageFilter::f_message_output(const QtMsgType type,
 {
     // Limit the size of the lists and create Log File of messages
 
-    QScopedPointer<MessageItem> itemScope( new MessageItem() );
+    QScopedPointer<MessageItem> itemScope( new MessageItem(m_widget_scroll_area) );
     QSharedPointer<MessageInfo> messageInfo( new MessageInfo(type, context, msg, m_last_id, QDateTime::currentDateTime()) );
 
     QTextStream streamLog(m_log_file.get());
@@ -423,7 +445,7 @@ void QtMessageFilter::f_set_message(const QtMsgType typeMessage)
         i!=listOfMessageType->begin(); )
     {
         --i;
-        MessageItem* item = new MessageItem();
+        MessageItem* item = new MessageItem(m_widget_scroll_area);
         item->setStyleSheet(styleSheet);
         item->setText(i->get()->message);
         m_list.append(QPair< QSharedPointer<MessageInfo>, MessageItem* >(*i, item));

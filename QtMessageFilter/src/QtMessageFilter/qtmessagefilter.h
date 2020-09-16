@@ -73,6 +73,7 @@ public:
     static void hideDialog();
     static void showDialog();
     static bool isDialogVisible();
+    static void setInstanceParent(QWidget* parent);
 
 protected:
 
@@ -117,6 +118,8 @@ private:
 
 
     // Begin UI
+    QVBoxLayout* m_vertical_layout_global;
+
     QScrollArea* m_scroll_area;
     QWidget* m_widget_scroll_area;
     QVBoxLayout* m_vertical_layout_scroll_area;
@@ -128,7 +131,6 @@ private:
     QCheckBox* m_cb_warning;
     QCheckBox* m_cb_critical;
 
-    QVBoxLayout* m_vertical_layout_global;
     // End UI
 
 
