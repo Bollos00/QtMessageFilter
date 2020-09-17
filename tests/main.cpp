@@ -13,35 +13,46 @@ public:
     TestWidget(QWidget* parent = nullptr):
         QMainWindow(parent),
         l(new QLabel(this)),
-        pb(new QPushButton(this))
+        pb0(new QPushButton(this)),
+        pb1(new QPushButton(this))
     {
         l->setText("Label");
         l->adjustSize();
         l->move(0, 0);
-        pb->setText("Close Message Filter");
-        pb->adjustSize();
-        pb->move(l->x() + l->width() + 5, 0);
+        pb0->setText("Show/hide Message Filter");
+        pb0->adjustSize();
+        pb0->move(l->x() + l->width() + 5, 0);
+        pb1->setText("Switch Message Handler");
+        pb1->adjustSize();
+        pb1->move(pb0->x() + pb0->width() + 5, 0);
+        this->resize(pb1->x() + pb1->width(), qMax(qMax(l->height(), pb0->height()), pb1->height()));
 
         this->setWindowTitle("Main Window Test");
+        this->setAttribute(Qt::WA_DeleteOnClose);
+        this->show();
 
-        connect(pb, &QPushButton::clicked,
-                [this]
+        connect(pb0, &QPushButton::clicked,
+                []
         {
             if(QtMessageFilter::isDialogVisible())
             {
                 QtMessageFilter::hideDialog();
-                pb->setText("Show Message Filter");
             }
             else
             {
                 QtMessageFilter::showDialog();
-                pb->setText("Hide Message Filter");
             }
         });
 
-        this->setAttribute(Qt::WA_DeleteOnClose);
-        this->show();
-        this->adjustSize();
+        connect(pb1, &QPushButton::clicked,
+                [this]
+        {
+           if(QtMessageFilter::good())
+               QtMessageFilter::releaseInstance();
+           else
+               QtMessageFilter::resetInstance(this);
+        });
+
     }
 
     ~TestWidget()
@@ -51,7 +62,8 @@ public:
 
 private:
     QLabel* l;
-    QPushButton* pb;
+    QPushButton* pb0;
+    QPushButton* pb1;
 };
 
 

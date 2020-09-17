@@ -1,10 +1,7 @@
 #ifndef MESSAGEFILTERQT_H
 #define MESSAGEFILTERQT_H
 
-#include <QList>
-#include <QPointer>
 #include <QLabel>
-#include <QPushButton>
 #include <QScrollArea>
 #include <QVBoxLayout>
 #include <QHBoxLayout>
@@ -13,9 +10,15 @@
 #include <QCheckBox>
 #include <QDateTime>
 #include <QSpacerItem>
-#include <QApplication>
-#include <QFile>
 
+
+///
+/// \brief This struct contains all information of a log message
+/// \details It os very similar to [QMessageLogContext](https://doc.qt.io/qt-5/qmessagelogcontext.html),
+/// but it has some additional information (the id of the message for the class
+/// QtMessageFilter and the time of generation of the message).
+/// It also hold not just the context of the message but the message itself
+///
 struct MessageInfo
 {
     const QtMsgType type;
@@ -39,6 +42,19 @@ struct MessageInfo
     ~MessageInfo();
 };
 
+
+///
+/// \brief This the widget of an item of a message
+/// It is inherited from QLabel and it has some particular behviours.
+/// It has its background black on normal state, but it becomes blue
+/// when it is clicked with the left button of the mouse, it continues
+/// blue until the user realese the button, then a dialog appear with
+/// all informations of the message. But if the user keep pressing it
+/// for 0.5s, then the message will be copied to the clipboard. This
+/// behaviour is defined on QtMessageFilter::f_message_output, on the
+/// creation of the item. Also, if the user presses the item with the
+/// right button of the mouse, the item will be deleted.
+///
 class MessageItem : public QLabel
 {
     Q_OBJECT
@@ -59,6 +75,41 @@ signals:
     void SIGNAL_rightButtonPressed();
 };
 
+
+///
+/// \brief This class is responsible for treat the messages of the application
+/// \details It is a Singleton class, because there must be only one instance
+/// of this class. It can be initialed calling the function
+/// QtMessageFilter::resetInstance(), with the option to choose the parent
+/// widget. When it is initialed, it install the message handler of the
+/// function QtMessageFilter::f_message_filter(). It is generated a new User
+/// Interface showing a list all the messages that are generated on the execution of
+/// the application.
+///
+/// It is possible to distinguish the message type by its font color.
+/// * Debug messages are cyan;
+/// * Info messages are light green;
+/// * Warning messages are yellow;
+/// * Critical messages are red.
+///
+/// For information on how to generate those messages, check those links:
+/// [https://doc.qt.io/qt-5/qmessagelogger.html] and
+/// [https://doc.qt.io/qt-5/qtglobal.html#QtMessageHandler-typedef].
+///
+/// It is possible to omit or show some specific type of message by
+/// selecting the checkboxess on the top of the Dialog.
+///
+/// It is possible to show and hide the User Interface calling the functions
+/// QtMessageFilter::hideDialog and
+/// QtMessageFilter::showDialog.
+///
+/// Note that this class will be operating even when it is hidden. To delete the instance
+/// of the class and disable the message filter, call QtMessageFilter::releaseInstance().
+///
+/// One last recurse of this class is a log file that is generated containing all the
+/// messages -- with its informations -- of the last session. Note that the log file
+/// always overwrite the one of the last file, so save a copy if needed.
+///
 class QtMessageFilter : public QDialog
 {
     Q_OBJECT
@@ -94,12 +145,12 @@ private:
     void f_configure_ui();
 
     static void f_message_filter(const QtMsgType type,
-                              const QMessageLogContext& context,
-                              const QString& msg);
+                                 const QMessageLogContext& context,
+                                 const QString& msg);
 
     void f_message_output(const QtMsgType type,
-                         const QMessageLogContext& context,
-                         const QString& msg);
+                          const QMessageLogContext& context,
+                          const QString& msg);
 
     void f_create_dialog_with_message_info(const MessageInfo& _info);
 

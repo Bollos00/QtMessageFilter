@@ -4,6 +4,7 @@
 #include <QShortcut>
 #include <QClipboard>
 #include <QTimer>
+#include <QApplication>
 
 QtMessageFilter* QtMessageFilter::m_singleton_instance = nullptr;
 
@@ -23,16 +24,6 @@ void QtMessageFilter::releaseInstance()
     if(!QtMessageFilter::good())
         return;
 
-    qInstallMessageHandler(0);
-
-//    QtMessageFilter* inst = QtMessageFilter::m_singleton_instance;
-//    for(auto i = inst ->m_list.begin(); i!=inst ->m_list.end();  )
-//    {
-//        delete i->second;
-//        i = inst ->m_list.erase(i);
-
-//    }
-
     delete QtMessageFilter::m_singleton_instance;
     QtMessageFilter::m_singleton_instance = nullptr;
 }
@@ -44,22 +35,51 @@ bool QtMessageFilter::good()
 
 void QtMessageFilter::hideDialog()
 {
-    QtMessageFilter::f_instance()->hide();
+    if(QtMessageFilter::good())
+        QtMessageFilter::f_instance()->hide();
+    else
+    {
+        qWarning()<<"You tried to call a method of the class QtMessageFilter when it was inactive,"
+                    " please call QtMessageFilter::resetInstance before use any method of this class.\n"
+                    "Thanks";
+    }
 }
 
 void QtMessageFilter::showDialog()
 {
-    QtMessageFilter::f_instance()->show();
+    if(QtMessageFilter::good())
+        QtMessageFilter::f_instance()->show();
+    else
+    {
+        qWarning()<<"You tried to call a method of the class QtMessageFilter when it was inactive,"
+                    " please call QtMessageFilter::resetInstance before use any method of this class.\n"
+                    "Thanks";
+    }
 }
 
 bool QtMessageFilter::isDialogVisible()
 {
+    if(!QtMessageFilter::good())
+    {
+        qWarning()<<"You tried to call a method of the class QtMessageFilter when it was inactive,"
+                    " please call QtMessageFilter::resetInstance before use any method of this class.\n"
+                    "Thanks.";
+        return false;
+    }
+
     return QtMessageFilter::f_instance()->isVisible();
 }
 
 void QtMessageFilter::setInstanceParent(QWidget* parent)
 {
-    QtMessageFilter::f_instance()->setParent(parent);
+    if(QtMessageFilter::good())
+        QtMessageFilter::f_instance()->setParent(parent);
+    else
+    {
+        qWarning()<<"You tried to call a method of the class QtMessageFilter when it was inactive,"
+                    " please call QtMessageFilter::resetInstance before use any method of this class.\n"
+                    "Thanks.";
+    }
 }
 
 void QtMessageFilter::closeEvent(QCloseEvent* event)
@@ -119,6 +139,8 @@ QtMessageFilter::QtMessageFilter(QWidget *parent)
 
 QtMessageFilter::~QtMessageFilter()
 {
+    qInstallMessageHandler(0);
+
     // We have a little memory leak problem here, but without this
     //  line of code, the application crashes on destructor. Since
     //  we are ending the application at this point, it should not
@@ -136,8 +158,8 @@ QtMessageFilter::~QtMessageFilter()
 QtMessageFilter* QtMessageFilter::f_instance()
 {
     if(!QtMessageFilter::good()){
-        qWarning("MessagefilterQt::instance() is nullptr. Call MessagefilterQt::resetInstance()\n"
-                 "before use any method of the class Singleton");
+        qWarning("MessagefilterQt::instance() is nullptr. Please call MessagefilterQt::resetInstance() "
+                 "before use any method of the class Singleton.\nThanks.");
 
         QtMessageFilter::resetInstance();
     }
