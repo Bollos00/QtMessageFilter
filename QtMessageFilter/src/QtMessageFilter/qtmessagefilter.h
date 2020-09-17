@@ -1,3 +1,26 @@
+// MIT License
+
+// Copyright (c) 2020 Bollos00
+
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+
+
 #ifndef MESSAGEFILTERQT_H
 #define MESSAGEFILTERQT_H
 
@@ -14,10 +37,12 @@
 
 ///
 /// \brief This struct contains all information of a log message
-/// \details It os very similar to [QMessageLogContext](https://doc.qt.io/qt-5/qmessagelogcontext.html),
+/// \details It is very similar to [QMessageLogContext](https://doc.qt.io/qt-5/qmessagelogcontext.html),
 /// but it has some additional information (the id of the message for the class
-/// QtMessageFilter and the time of generation of the message).
-/// It also hold not just the context of the message but the message itself
+/// QtMessageFilter and the time of generation of the message). The id of the message
+/// is count of messages when the message was generated, that way, the first message will
+/// have id=0, the seconde one will have id=1 and so on.
+/// It also hold not just the context of the message but the message itself.
 ///
 struct MessageInfo
 {
@@ -45,7 +70,7 @@ struct MessageInfo
 
 ///
 /// \brief This the widget of an item of a message
-/// It is inherited from QLabel and it has some particular behviours.
+/// \details It is inherited from QLabel and it has some particular behviours.
 /// It has its background black on normal state, but it becomes blue
 /// when it is clicked with the left button of the mouse, it continues
 /// blue until the user realese the button, then a dialog appear with
@@ -81,10 +106,9 @@ signals:
 /// \details It is a Singleton class, because there must be only one instance
 /// of this class. It can be initialed calling the function
 /// QtMessageFilter::resetInstance(), with the option to choose the parent
-/// widget. When it is initialed, it install the message handler of the
-/// function QtMessageFilter::f_message_filter(). It is generated a new User
-/// Interface showing a list all the messages that are generated on the execution of
-/// the application.
+/// widget. When it is initialed, it install the message handler of the class.
+/// It is generated a new User Interface showing a list all the messages
+/// that are generated on the execution of the application.
 ///
 /// It is possible to distinguish the message type by its font color.
 /// * Debug messages are cyan;
@@ -97,7 +121,10 @@ signals:
 /// [https://doc.qt.io/qt-5/qtglobal.html#QtMessageHandler-typedef].
 ///
 /// It is possible to omit or show some specific type of message by
-/// selecting the checkboxess on the top of the Dialog.
+/// selecting the checkboxess on the top of the Dialog. The blue spider
+/// represents debug messages, the 'i' icon inside a green circle represents
+/// information messages, the '!' inside a triangle represents warning
+/// messages and the 'x' inside a red circle represents critical messages.
 ///
 /// It is possible to show and hide the User Interface calling the functions
 /// QtMessageFilter::hideDialog and
