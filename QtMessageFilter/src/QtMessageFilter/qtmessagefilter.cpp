@@ -1,17 +1,18 @@
+//
 // MIT License
-
+//
 // Copyright (c) 2020 Bollos00
-
+//
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
 // in the Software without restriction, including without limitation the rights
 // to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
 // copies of the Software, and to permit persons to whom the Software is
 // furnished to do so, subject to the following conditions:
-
+//
 // The above copyright notice and this permission notice shall be included in all
 // copies or substantial portions of the Software.
-
+//
 // THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 // IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 // FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
@@ -19,18 +20,22 @@
 // LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
+//
 
 
 #include "qtmessagefilter.h"
 
 #include <QDebug>
-#include <QThread>
 #include <QShortcut>
 #include <QClipboard>
 #include <QTimer>
 #include <QApplication>
+#include <QMutex>
 
 QtMessageFilter* QtMessageFilter::m_singleton_instance = nullptr;
+
+// For multi-thread safe
+QMutex mutex;
 
 void QtMessageFilter::resetInstance(QWidget* parent, bool hide)
 {
@@ -40,6 +45,7 @@ void QtMessageFilter::resetInstance(QWidget* parent, bool hide)
     if(!hide)
         QtMessageFilter::showDialog();
 
+    // Install the message handler of this class
     qInstallMessageHandler(QtMessageFilter::f_message_filter);
 }
 
@@ -108,7 +114,15 @@ void QtMessageFilter::setInstanceParent(QWidget* parent)
 
 void QtMessageFilter::closeEvent(QCloseEvent* event)
 {
+    Q_UNUSED(event)
     this->hide();
+}
+
+void QtMessageFilter::hideEvent(QHideEvent* event)
+{
+    Q_UNUSED(event)
+    m_current_dialog->hide();
+    this->QWidget::hide();
 }
 
 void QtMessageFilter::reject()
@@ -129,25 +143,30 @@ QtMessageFilter::QtMessageFilter(QWidget *parent)
       m_widget_scroll_area(new QWidget()),
       m_vertical_layout_scroll_area(new QVBoxLayout(m_widget_scroll_area)),
       m_horizontal_layout(new QHBoxLayout()),
-      m_horizontal_spacer(),
+      m_horizontal_spacer(new QSpacerItem(40, 20, QSizePolicy::Expanding, QSizePolicy::Minimum)),
       m_cb_debug(new QCheckBox(this)),
       m_cb_info(new QCheckBox(this)),
       m_cb_warning(new QCheckBox(this)),
       m_cb_critical(new QCheckBox(this)),
       m_current_dialog(new QDialog(this)),
+      m_current_dialog_vertical_layout(new QVBoxLayout(m_current_dialog)),
       m_current_dialog_text(new QPlainTextEdit(m_current_dialog)),
       m_log_file(new QFile()),
       m_maximum_itens_size(100),
-      m_maximum_message_info_size(100)
+      m_maximum_message_details_size(100)
 {
     f_configure_ui();
 
-    connect(new QShortcut(QKeySequence(Qt::CTRL + Qt::Key_Q), this),
-            &QShortcut::activated,
-            this,
-            &QWidget::hide);
+    // Multi-thread support
+    qRegisterMetaType<QSharedPointer<MessageDetails>>();
 
+    // Multi-thread support, &QtMessageFilter::slot_create_message_item will be
+    //  always executed on the main thread
+    connect(this, &QtMessageFilter::signal_create_message_item,
+            this, &QtMessageFilter::slot_create_message_item,
+            Qt::QueuedConnection);
 
+    // Remove last log file, current a new one and let it be opened
     m_log_file->setFileName("QtMessageFilterLog.txt");
     if(m_log_file->remove())
         m_log_file->setFileName("QtMessageFilterLog.txt");
@@ -156,13 +175,14 @@ QtMessageFilter::QtMessageFilter(QWidget *parent)
     // Log File Begin
     {
         QTextStream stream(m_log_file.get());
-        stream << "\\BEGIN " << QDateTime::currentDateTime().toString(Qt::ISODate)
+        stream << "\\BEGIN " << QDateTime::currentDateTime().toString(Qt::ISODateWithMs)
                << "\n\n\n";
     }
 }
 
 QtMessageFilter::~QtMessageFilter()
 {
+    // Install the default message handler
     qInstallMessageHandler(0);
 
     // We have a little memory leak problem here, but without this
@@ -175,7 +195,7 @@ QtMessageFilter::~QtMessageFilter()
     {
         QTextStream stream(m_log_file.get());
         stream << "\n\n\n"
-               << "\\END " << QDateTime::currentDateTime().toString(Qt::ISODate);
+               << "\\END " << QDateTime::currentDateTime().toString(Qt::ISODateWithMs);
     }
 }
 
@@ -213,20 +233,15 @@ void QtMessageFilter::f_configure_ui()
                                 "QCheckBox::indicator::unchecked { image : url(:/share/icons/critical_off.png); }\n"
                                 "QCheckBox::indicator::checked { image : url(:/share/icons/critical_on.png); }");
 
-    for(uchar i=0; i<5; i++)
-    {
-        m_horizontal_spacer[i] = new QSpacerItem(40, 20, QSizePolicy::Expanding, QSizePolicy::Minimum);
-    }
-
-    m_horizontal_layout->addItem(m_horizontal_spacer[0]);
+    m_horizontal_layout->addItem(m_horizontal_spacer);
     m_horizontal_layout->addWidget(m_cb_debug);
-    m_horizontal_layout->addItem(m_horizontal_spacer[0]);
+    m_horizontal_layout->addItem(m_horizontal_spacer);
     m_horizontal_layout->addWidget(m_cb_info);
-    m_horizontal_layout->addItem(m_horizontal_spacer[0]);
+    m_horizontal_layout->addItem(m_horizontal_spacer);
     m_horizontal_layout->addWidget(m_cb_warning);
-    m_horizontal_layout->addItem(m_horizontal_spacer[0]);
+    m_horizontal_layout->addItem(m_horizontal_spacer);
     m_horizontal_layout->addWidget(m_cb_critical);
-    m_horizontal_layout->addItem(m_horizontal_spacer[0]);
+    m_horizontal_layout->addItem(m_horizontal_spacer);
 
 
     m_scroll_area->setWidgetResizable(true);
@@ -235,52 +250,50 @@ void QtMessageFilter::f_configure_ui()
 
 
 
-//    delete this->layout();
     m_vertical_layout_global->addLayout(m_horizontal_layout);
     m_vertical_layout_global->addWidget(m_scroll_area);
-
     this->setLayout(m_vertical_layout_global);
 
     this->setMaximumSize(800, 1200);
-
     this->setMinimumSize(400, 900);
 
     // This looks unecessary, I shall investigate another option
     connect(m_cb_debug, &QCheckBox::released,
-            [this]{if(m_cb_debug->isChecked()) f_set_message(QtDebugMsg); else f_unset_message(QtDebugMsg);});
+            [this]{if(m_cb_debug->isChecked()) f_set_message_of_type(QtDebugMsg); else f_unset_message_of_type(QtDebugMsg);});
     connect(m_cb_info, &QCheckBox::released,
-            [this]{if(m_cb_info->isChecked()) f_set_message(QtInfoMsg); else f_unset_message(QtInfoMsg);});
+            [this]{if(m_cb_info->isChecked()) f_set_message_of_type(QtInfoMsg); else f_unset_message_of_type(QtInfoMsg);});
     connect(m_cb_warning, &QCheckBox::released,
-            [this]{if(m_cb_warning->isChecked()) f_set_message(QtWarningMsg); else f_unset_message(QtWarningMsg);});
+            [this]{if(m_cb_warning->isChecked()) f_set_message_of_type(QtWarningMsg); else f_unset_message_of_type(QtWarningMsg);});
     connect(m_cb_critical, &QCheckBox::released,
-            [this]{if(m_cb_critical->isChecked()) f_set_message(QtCriticalMsg); else f_unset_message(QtCriticalMsg);});
+            [this]{if(m_cb_critical->isChecked()) f_set_message_of_type(QtCriticalMsg); else f_unset_message_of_type(QtCriticalMsg);});
 
     m_cb_debug->setChecked(true);
     m_cb_info->setChecked(true);
     m_cb_warning->setChecked(true);
     m_cb_critical->setChecked(true);
 
+    m_current_dialog_vertical_layout->addWidget(m_current_dialog_text);
     m_current_dialog_text->setReadOnly(true);
+    m_current_dialog->setWindowTitle("Message details");
 
     this->setWindowTitle("Qt Message Filter");
 }
 
 void QtMessageFilter::f_message_filter(const QtMsgType type, const QMessageLogContext& context, const QString& msg)
 {
+    mutex.lock();
+
     if(QtMessageFilter::good())
         QtMessageFilter::f_instance()->f_message_output(type, context, msg);
-//    else
-    //        qDebug()<<msg;
+
+    mutex.unlock();
 }
 
 void QtMessageFilter::f_message_output(const QtMsgType type,
-                                      const QMessageLogContext& context,
-                                      const QString& msg)
+                                       const QMessageLogContext& context,
+                                       const QString& msg)
 {
-    // Limit the size of the lists and create Log File of messages
-
-    QScopedPointer<MessageItem> itemScope( new MessageItem(m_widget_scroll_area) );
-    QSharedPointer<MessageInfo> messageInfo( new MessageInfo(type, context, msg, m_last_id, QDateTime::currentDateTime()) );
+    QSharedPointer<MessageDetails> messageInfo( new MessageDetails(type, context, msg, m_last_id++, QDateTime::currentDateTime()) );
 
     QTextStream streamLog(m_log_file.get());
 
@@ -296,7 +309,7 @@ void QtMessageFilter::f_message_output(const QtMsgType type,
                  messageInfo->category << '\n' << '\n' <<
 
                  "\\time_date:\n" <<
-                 messageInfo->dateTime.toString(Qt::ISODate) << '\n' << '\n';
+                 messageInfo->dateTime.toString(Qt::ISODateWithMs) << '\n' << '\n';
 
     switch (type)
     {
@@ -306,12 +319,11 @@ void QtMessageFilter::f_message_output(const QtMsgType type,
             streamLog << ">>>>>>>>>>>>>>>" << messageInfo->id << ">>>>>>>>>>>>>>>\n";
 
             m_debug.append(messageInfo);
-            if((ulong)m_debug.size() > m_maximum_message_info_size)
+            if((ulong)m_debug.size() > m_maximum_message_details_size)
                 m_debug.removeFirst();
 
             if(!m_cb_debug->isChecked())
                 return;
-            itemScope->setStyleSheet("QLabel { background-color : black; color : cyan; }");
             break;
 
         case QtInfoMsg:
@@ -320,12 +332,11 @@ void QtMessageFilter::f_message_output(const QtMsgType type,
             streamLog << ">>>>>>>>>>>>>>>" << messageInfo->id << ">>>>>>>>>>>>>>>\n";
 
             m_info.append(messageInfo);
-            if((ulong)m_info.size() > m_maximum_message_info_size)
+            if((ulong)m_info.size() > m_maximum_message_details_size)
                 m_info.removeFirst();
 
             if(!m_cb_info->isChecked())
                 return;
-            itemScope->setStyleSheet("QLabel { background-color : black; color : #90ee90; }"); // light green font color
             break;
 
         case QtWarningMsg:
@@ -334,12 +345,11 @@ void QtMessageFilter::f_message_output(const QtMsgType type,
             streamLog << ">>>>>>>>>>>>>>>" << messageInfo->id << ">>>>>>>>>>>>>>>\n";
 
             m_warning.append(messageInfo);
-            if((ulong)m_warning.size() > m_maximum_message_info_size)
+            if((ulong)m_warning.size() > m_maximum_message_details_size)
                 m_warning.removeFirst();
 
             if(!m_cb_warning->isChecked())
                 return;
-            itemScope->setStyleSheet("QLabel { background-color : black; color : yellow; }");
             break;
 
         case QtCriticalMsg:
@@ -348,12 +358,11 @@ void QtMessageFilter::f_message_output(const QtMsgType type,
             streamLog << ">>>>>>>>>>>>>>>" << messageInfo->id << ">>>>>>>>>>>>>>>\n";
 
             m_critical.append(messageInfo);
-            if((ulong)m_critical.size() > m_maximum_message_info_size)
+            if((ulong)m_critical.size() > m_maximum_message_details_size)
                 m_critical.removeFirst();
 
             if(!m_cb_critical->isChecked())
                 return;
-            itemScope->setStyleSheet("QLabel { background-color : black; color : red; }");
             break;
 
         case QtFatalMsg:
@@ -365,78 +374,54 @@ void QtMessageFilter::f_message_output(const QtMsgType type,
             return; // Note: never gets here, end on fatal (line above)
     }
 
-    MessageItem* item = itemScope.take();
 
-    item->setText(msg);
+//    if(QThread::currentThread() == this->thread())
+//    {
+//        slot_create_message_item(messageInfo);
+//    }
+//    else
+//    {
+//        emit signal_create_message_item(messageInfo);
+//    }
 
-    m_list.append(QPair< QSharedPointer<MessageInfo>, MessageItem* >(messageInfo, item));
-    item->adjustSize();
-    m_vertical_layout_scroll_area->addWidget(item);
-    item->show();
-    // Is this the best way of doing it?
-    connect(item, &MessageItem::SIGNAL_leftButtonReleased, [this, messageInfo]{f_create_dialog_with_message_info(*messageInfo);});
-    connect(item, &MessageItem::SIGNAL_rightButtonPressed,
-            [this, messageInfo, item]
-    {
-        m_list.removeOne(QPair< QSharedPointer<MessageInfo>, MessageItem* >(messageInfo, item));
-
-        if(messageInfo.get()->type == QtDebugMsg)
-            m_debug.removeOne(messageInfo);
-        else if(messageInfo.get()->type == QtInfoMsg)
-            m_info.removeOne(messageInfo);
-        else if(messageInfo.get()->type == QtWarningMsg)
-            m_warning.removeOne(messageInfo);
-        else
-            m_critical.removeOne(messageInfo);
-
-        item->disconnect();
-        item->deleteLater();
-    });
-
-
-    m_last_id++;
-
-    if((ulong)m_vertical_layout_scroll_area->count() > m_maximum_itens_size)
-        delete m_vertical_layout_scroll_area->takeAt(0);
+    emit signal_create_message_item(messageInfo);
 }
 
-void QtMessageFilter::f_create_dialog_with_message_info(const MessageInfo& info)
+void QtMessageFilter::f_create_dialog_with_message_details(const MessageDetails& details)
 {
     QString typeStr;
-    if(info.type == QtDebugMsg)
+    if(details.type == QtDebugMsg)
         typeStr = "Debug";
-    else if(info.type == QtInfoMsg)
+    else if(details.type == QtInfoMsg)
         typeStr = "Info";
-    else if(info.type == QtWarningMsg)
+    else if(details.type == QtWarningMsg)
         typeStr = "Warning";
-    else if(info.type == QtCriticalMsg)
+    else if(details.type == QtCriticalMsg)
         typeStr = "Critical";
 
     m_current_dialog_text->setPlainText
             (
-                "Origin : \n" +
-                info.fileName + " " + QString::number(info.line) + '\n' + '\n' +
+                "Origin:\n" +
+                details.fileName + " " + QString::number(details.line) + '\n' + '\n' +
 
-                "Function Call: \n" +
-                info.function + '\n' + '\n' +
+                "Function Call:\n" +
+                details.function + '\n' + '\n' +
 
-                "Category: \n" +
-                info.category + '\n' + '\n' +
+                "Category:\n" +
+                details.category + '\n' + '\n' +
 
-                "Time: " + '\n' +
-                info.dateTime.toString(Qt::ISODate) + '\n' + '\n' +
+                "Time:\n" +
+                details.dateTime.toString(Qt::ISODateWithMs) + '\n' + '\n' +
 
-                typeStr + " message " + QString::number(info.id) + ": \n" +
-                info.message
+                typeStr + " message " + QString::number(details.id) + ":\n" +
+                details.message
 
              );
 
-    m_current_dialog_text->adjustSize();
-    m_current_dialog->adjustSize();
     m_current_dialog->show();
 }
 
-void QtMessageFilter::f_unset_message(const QtMsgType typeMssage)
+void QtMessageFilter::f_unset_message_of_type(const QtMsgType typeMssage)
 {
     for(auto i = m_list.begin(); i!=m_list.end();  )
     {
@@ -451,11 +436,11 @@ void QtMessageFilter::f_unset_message(const QtMsgType typeMssage)
         }
     }
 }
-void QtMessageFilter::f_set_message(const QtMsgType typeMessage)
+void QtMessageFilter::f_set_message_of_type(const QtMsgType typeMessage)
 {
     // simplify this
     QString styleSheet;
-    QList<QSharedPointer<MessageInfo>>* listOfMessageType = nullptr;
+    QList<QSharedPointer<MessageDetails>>* listOfMessageType = nullptr;
 
     switch(typeMessage)
     {
@@ -491,54 +476,124 @@ void QtMessageFilter::f_set_message(const QtMsgType typeMessage)
         i!=listOfMessageType->begin(); )
     {
         --i;
+        QSharedPointer<MessageDetails> k = *i;
         MessageItem* item = new MessageItem(m_widget_scroll_area);
         item->setStyleSheet(styleSheet);
-        item->setText(i->get()->message);
-        m_list.append(QPair< QSharedPointer<MessageInfo>, MessageItem* >(*i, item));
+        item->setText(k->message);
         item->adjustSize();
 
-        const ulong id = i->get()->id;
+        const ulong id = k->id;
+
         MessageItem* itemAfter = nullptr;
         for(auto n = m_list.begin(); n!=m_list.end(); ++n)
         {
             if(n->first.get()->id > id)
             {
                 itemAfter = n->second;
+                m_list.insert(n, QPair< QSharedPointer<MessageDetails>, MessageItem* >(k, item));
+                m_vertical_layout_scroll_area->insertWidget(m_vertical_layout_scroll_area->indexOf(itemAfter), item);
                 break;
             }
         }
 
-        if(itemAfter)
-            m_vertical_layout_scroll_area->insertWidget(m_vertical_layout_scroll_area->indexOf(itemAfter), item);
-        else
+        if(!itemAfter)
+        {
             m_vertical_layout_scroll_area->addWidget(item);
+            m_list.append(QPair< QSharedPointer<MessageDetails>, MessageItem* >(k, item));
+        }
 
         item->show();
 
         // Is this the best way of doing it?
-        connect(item, &MessageItem::SIGNAL_leftButtonReleased, [this, i]{f_create_dialog_with_message_info(*(i->get()));});
+        connect(item, &MessageItem::SIGNAL_leftButtonReleased,
+                [this, k]{f_create_dialog_with_message_details(*k);});
 
         connect(item, &MessageItem::SIGNAL_rightButtonPressed,
-                [this, i, item]
+                [this, k, item]
         {
-            m_list.removeOne(QPair< QSharedPointer<MessageInfo>, MessageItem* >(*i, item));
 
-            if(i->get()->type == QtDebugMsg)
-                m_debug.removeOne(*i);
-            else if(i->get()->type == QtInfoMsg)
-                m_info.removeOne(*i);
-            else if(i->get()->type == QtWarningMsg)
-                m_warning.removeOne(*i);
+            if(k->type == QtDebugMsg)
+                m_debug.removeOne(k);
+            else if(k->type == QtInfoMsg)
+                m_info.removeOne(k);
+            else if(k->type == QtWarningMsg)
+                m_warning.removeOne(k);
             else
-                m_critical.removeOne(*i);
+                m_critical.removeOne(k);
 
-            Q_ASSERT(i->isNull());
+            m_list.removeOne(QPair< QSharedPointer<MessageDetails>, MessageItem* >(k, item));
+            item->disconnect();
+            item->deleteLater();
+
         });
+    }
+}
+
+void QtMessageFilter::slot_create_message_item(QSharedPointer<MessageDetails> messageDetails)
+{
+    MessageItem* item = new MessageItem(m_widget_scroll_area);
+    QString styleSheet;
+
+    switch(messageDetails->type)
+    {
+        case QtDebugMsg:
+        {
+            styleSheet = "QLabel { background-color : black; color : cyan; }";
+        }break;
+        case QtInfoMsg:
+        {
+            styleSheet = "QLabel { background-color : black; color : #90ee90; }";
+        }break;
+        case QtWarningMsg:
+        {
+            styleSheet = "QLabel { background-color : black; color : yellow; }";
+        }break;
+        case QtCriticalMsg:
+        {
+            styleSheet = "QLabel { background-color : black; color : red; }";
+        }break;
+        default:
+            return;
+    }
+
+    item->setText(messageDetails->message);
+    item->setStyleSheet(styleSheet);
+    m_list.append(QPair< QSharedPointer<MessageDetails>, MessageItem* >(messageDetails, item));
+    item->adjustSize();
+    m_vertical_layout_scroll_area->addWidget(item);
+    item->show();
+
+    // Is this the best way of doing it?
+    connect(item, &MessageItem::SIGNAL_leftButtonReleased,
+            [this, messageDetails]{f_create_dialog_with_message_details(*messageDetails);});
+    connect(item, &MessageItem::SIGNAL_rightButtonPressed,
+            [this, messageDetails, item]
+    {
+
+        if(messageDetails.get()->type == QtDebugMsg)
+            m_debug.removeOne(messageDetails);
+        else if(messageDetails.get()->type == QtInfoMsg)
+            m_info.removeOne(messageDetails);
+        else if(messageDetails.get()->type == QtWarningMsg)
+            m_warning.removeOne(messageDetails);
+        else
+            m_critical.removeOne(messageDetails);
+
+        m_list.removeOne(QPair< QSharedPointer<MessageDetails>, MessageItem* >(messageDetails, item));
+        item->disconnect();
+        item->deleteLater();
+    });
+
+    if((ulong)m_vertical_layout_scroll_area->count() > m_maximum_itens_size)
+    {
+        delete m_list.first().second;
+        m_list.removeFirst();
     }
 }
 
 
 MessageItem::MessageItem(QWidget* parent):
+    QLabel(parent),
     m_tmr_pressed(nullptr)
 {}
 
@@ -590,11 +645,11 @@ void MessageItem::mouseReleaseEvent(QMouseEvent* e)
     }
 }
 
-MessageInfo::MessageInfo(const QtMsgType thatType,
-                         const QMessageLogContext& thatContext,
-                         const QString& thatMessage,
-                         const ulong thatId,
-                         const QDateTime thatDateTime) :
+MessageDetails::MessageDetails(const QtMsgType thatType,
+                               const QMessageLogContext& thatContext,
+                               const QString& thatMessage,
+                               const ulong thatId,
+                               const QDateTime thatDateTime) :
     type(thatType),
     line(thatContext.line),
     fileName(thatContext.file),
@@ -607,7 +662,7 @@ MessageInfo::MessageInfo(const QtMsgType thatType,
 
 }
 
-MessageInfo::~MessageInfo()
+MessageDetails::~MessageDetails()
 {
-//    qDebug(Q_FUNC_INFO);
+
 }

@@ -1,17 +1,18 @@
+//
 // MIT License
-
+//
 // Copyright (c) 2020 Bollos00
-
+//
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
 // in the Software without restriction, including without limitation the rights
 // to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
 // copies of the Software, and to permit persons to whom the Software is
 // furnished to do so, subject to the following conditions:
-
+//
 // The above copyright notice and this permission notice shall be included in all
 // copies or substantial portions of the Software.
-
+//
 // THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 // IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 // FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
@@ -19,7 +20,7 @@
 // LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
-
+//
 
 #ifndef MESSAGEFILTERQT_H
 #define MESSAGEFILTERQT_H
@@ -44,7 +45,7 @@
 /// have id=0, the seconde one will have id=1 and so on.
 /// It also hold not just the context of the message but the message itself.
 ///
-struct MessageInfo
+struct MessageDetails
 {
     const QtMsgType type;
     const int line;
@@ -58,13 +59,13 @@ struct MessageInfo
     const ulong id;
     const QDateTime dateTime;
 
-    MessageInfo(const QtMsgType thatType,
-                const QMessageLogContext& thatContext,
-                const QString& thatMessage,
-                const ulong thatId,
-                const QDateTime thatDateTime);
+    MessageDetails(const QtMsgType thatType,
+                   const QMessageLogContext& thatContext,
+                   const QString& thatMessage,
+                   const ulong thatId,
+                   const QDateTime thatDateTime);
 
-    ~MessageInfo();
+    ~MessageDetails();
 };
 
 
@@ -99,7 +100,7 @@ signals:
     void SIGNAL_leftButtonReleased();
     void SIGNAL_rightButtonPressed();
 };
-
+Q_DECLARE_METATYPE(QSharedPointer<MessageDetails>)
 
 ///
 /// \brief This class is responsible for treat the messages of the application
@@ -156,6 +157,7 @@ public:
 protected:
 
     void closeEvent(QCloseEvent *event = nullptr);
+    void hideEvent(QHideEvent* event = nullptr);
     void reject();
 
 
@@ -179,23 +181,23 @@ private:
                           const QMessageLogContext& context,
                           const QString& msg);
 
-    void f_create_dialog_with_message_info(const MessageInfo& _info);
+    void f_create_dialog_with_message_details(const MessageDetails& details);
 
-    void f_unset_message(const QtMsgType typeMssage);
-    void f_set_message(const QtMsgType typeMessage);
+    void f_unset_message_of_type(const QtMsgType typeMessage);
+    void f_set_message_of_type(const QtMsgType typeMessage);
 
 
-    QList<QSharedPointer<MessageInfo>> m_debug;
-    QList<QSharedPointer<MessageInfo>> m_info;
-    QList<QSharedPointer<MessageInfo>> m_warning;
-    QList<QSharedPointer<MessageInfo>> m_critical;
+    QList<QSharedPointer<MessageDetails>> m_debug;
+    QList<QSharedPointer<MessageDetails>> m_info;
+    QList<QSharedPointer<MessageDetails>> m_warning;
+    QList<QSharedPointer<MessageDetails>> m_critical;
 
     ulong m_last_id;
 
-    QList<  QPair< QSharedPointer<MessageInfo>, MessageItem* >  > m_list;
+    QList<  QPair< QSharedPointer<MessageDetails>, MessageItem* >  > m_list;
 
 
-    // Begin UI
+    // UI
     QVBoxLayout* m_vertical_layout_global;
 
     QScrollArea* m_scroll_area;
@@ -203,23 +205,31 @@ private:
     QVBoxLayout* m_vertical_layout_scroll_area;
 
     QHBoxLayout* m_horizontal_layout;
-    QSpacerItem* m_horizontal_spacer[5];
+    QSpacerItem* m_horizontal_spacer;
     QCheckBox* m_cb_debug;
     QCheckBox* m_cb_info;
     QCheckBox* m_cb_warning;
     QCheckBox* m_cb_critical;
+    // UI
 
-    // End UI
 
-
+    // Dialog With message info
     QDialog* m_current_dialog;
+    QVBoxLayout* m_current_dialog_vertical_layout;
     QPlainTextEdit* m_current_dialog_text;
+    // Dialog With message info
 
 
     QScopedPointer<QFile> m_log_file;
 
 
     const ulong m_maximum_itens_size;
-    const ulong m_maximum_message_info_size;
+    const ulong m_maximum_message_details_size;
+
+private Q_SLOTS:
+    void slot_create_message_item(QSharedPointer<MessageDetails> messageDetails);
+
+Q_SIGNALS:
+    void signal_create_message_item(QSharedPointer<MessageDetails> messageDetails);
 };
 #endif // MESSAGEFILTERQT_H

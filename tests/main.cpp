@@ -94,7 +94,7 @@ int main(int argc, char *argv[])
     QApplication a(argc, argv);
 
     TestWidget* w = new TestWidget();
-    QtMessageFilter::resetInstance(w);
+    QtMessageFilter::resetInstance(w, true);
 
     QTimer* tmr = new QTimer();
     QObject::connect(tmr, &QTimer::timeout,
