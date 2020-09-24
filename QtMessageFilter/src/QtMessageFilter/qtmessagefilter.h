@@ -186,6 +186,7 @@ private:
     void f_unset_message_of_type(const QtMsgType typeMessage);
     void f_set_message_of_type(const QtMsgType typeMessage);
 
+    void f_remove_item_from_list(QSharedPointer<MessageDetails> messageDetails, MessageItem* item);
 
     QList<QSharedPointer<MessageDetails>> m_debug;
     QList<QSharedPointer<MessageDetails>> m_info;

@@ -212,6 +212,7 @@ QtMessageFilter* QtMessageFilter::f_instance()
 
 void QtMessageFilter::f_configure_ui()
 {
+    // Constant size of the checkboxes
     m_cb_debug->setFixedSize(20, 20);
     m_cb_info->setFixedSize(20, 20);
     m_cb_warning->setFixedSize(20, 20);
@@ -244,34 +245,54 @@ void QtMessageFilter::f_configure_ui()
     m_horizontal_layout->addItem(m_horizontal_spacer);
 
 
+
+
     m_scroll_area->setWidgetResizable(true);
     m_widget_scroll_area->setGeometry(0, 0, 400, 800);
     m_scroll_area->setWidget(m_widget_scroll_area);
-
 
 
     m_vertical_layout_global->addLayout(m_horizontal_layout);
     m_vertical_layout_global->addWidget(m_scroll_area);
     this->setLayout(m_vertical_layout_global);
 
+    // Maximum and minimum sizes of the dialog
     this->setMaximumSize(800, 1200);
-    this->setMinimumSize(400, 900);
+    this->setMinimumSize(400, 500);
 
     // This looks unecessary, I shall investigate another option
-    connect(m_cb_debug, &QCheckBox::released,
-            [this]{if(m_cb_debug->isChecked()) f_set_message_of_type(QtDebugMsg); else f_unset_message_of_type(QtDebugMsg);});
-    connect(m_cb_info, &QCheckBox::released,
-            [this]{if(m_cb_info->isChecked()) f_set_message_of_type(QtInfoMsg); else f_unset_message_of_type(QtInfoMsg);});
-    connect(m_cb_warning, &QCheckBox::released,
-            [this]{if(m_cb_warning->isChecked()) f_set_message_of_type(QtWarningMsg); else f_unset_message_of_type(QtWarningMsg);});
-    connect(m_cb_critical, &QCheckBox::released,
-            [this]{if(m_cb_critical->isChecked()) f_set_message_of_type(QtCriticalMsg); else f_unset_message_of_type(QtCriticalMsg);});
+    // It connects the signals of the checkboxes on a lambda
+    //  for omit or show the messages of that type, depending
+    //  on the current state.
+    // This signal is emmited whenever the state of the checkbox changes
+    connect(m_cb_debug, &QCheckBox::stateChanged,
+            [this]{ if(m_cb_debug->isChecked()) f_set_message_of_type(QtDebugMsg); else f_unset_message_of_type(QtDebugMsg); });
+    connect(m_cb_info, &QCheckBox::stateChanged,
+            [this]{ if(m_cb_info->isChecked()) f_set_message_of_type(QtInfoMsg); else f_unset_message_of_type(QtInfoMsg);} );
+    connect(m_cb_warning, &QCheckBox::stateChanged,
+            [this]{ if(m_cb_warning->isChecked()) f_set_message_of_type(QtWarningMsg); else f_unset_message_of_type(QtWarningMsg); });
+    connect(m_cb_critical, &QCheckBox::stateChanged,
+            [this]{ if(m_cb_critical->isChecked()) f_set_message_of_type(QtCriticalMsg); else f_unset_message_of_type(QtCriticalMsg); });
 
+    // Connect shortcuts to change the state of the checkboxes
+    connect(new QShortcut(QKeySequence(Qt::Key_D), this), &QShortcut::activated,
+            [this]{ m_cb_debug->setChecked(!m_cb_debug->isChecked()); });
+    connect(new QShortcut(QKeySequence(Qt::Key_I), this), &QShortcut::activated,
+            [this]{ m_cb_info->setChecked(!m_cb_info->isChecked()); });
+    connect(new QShortcut(QKeySequence(Qt::Key_W), this), &QShortcut::activated,
+            [this]{ m_cb_warning->setChecked(!m_cb_warning->isChecked()); });
+    connect(new QShortcut(QKeySequence(Qt::Key_C), this), &QShortcut::activated,
+            [this]{ m_cb_critical->setChecked(!m_cb_critical->isChecked()); });
+
+
+
+    // Initialize with all checkboxes checked
     m_cb_debug->setChecked(true);
     m_cb_info->setChecked(true);
     m_cb_warning->setChecked(true);
     m_cb_critical->setChecked(true);
 
+    // Initialize dialog with message details
     m_current_dialog_vertical_layout->addWidget(m_current_dialog_text);
     m_current_dialog_text->setReadOnly(true);
     m_current_dialog->setWindowTitle("Message details");
@@ -297,8 +318,8 @@ void QtMessageFilter::f_message_output(const QtMsgType type,
 
     QTextStream streamLog(m_log_file.get());
 
+    // Write message details on the log file
     streamLog << "<<<<<<<<<<<<<<<" << messageInfo->id << "<<<<<<<<<<<<<<<\n";
-
     streamLog << "\\origin:\n" <<
                  messageInfo->fileName << " " << QString::number(messageInfo->line) << '\n' << '\n' <<
 
@@ -436,6 +457,8 @@ void QtMessageFilter::f_unset_message_of_type(const QtMsgType typeMssage)
         }
     }
 }
+
+
 void QtMessageFilter::f_set_message_of_type(const QtMsgType typeMessage)
 {
     // simplify this
@@ -470,7 +493,7 @@ void QtMessageFilter::f_set_message_of_type(const QtMsgType typeMessage)
             return;
     }
 
-
+    // Iterate from the last element (added more recently) to the first
     for(auto i = listOfMessageType->end();
         (ulong)m_vertical_layout_scroll_area->count() <= m_maximum_itens_size &&
         i!=listOfMessageType->begin(); )
@@ -484,6 +507,7 @@ void QtMessageFilter::f_set_message_of_type(const QtMsgType typeMessage)
 
         const ulong id = k->id;
 
+        // Try to insert the new element on its right position, according with its id attribute
         MessageItem* itemAfter = nullptr;
         for(auto n = m_list.begin(); n!=m_list.end(); ++n)
         {
@@ -495,7 +519,6 @@ void QtMessageFilter::f_set_message_of_type(const QtMsgType typeMessage)
                 break;
             }
         }
-
         if(!itemAfter)
         {
             m_vertical_layout_scroll_area->addWidget(item);
@@ -506,27 +529,26 @@ void QtMessageFilter::f_set_message_of_type(const QtMsgType typeMessage)
 
         // Is this the best way of doing it?
         connect(item, &MessageItem::SIGNAL_leftButtonReleased,
-                [this, k]{f_create_dialog_with_message_details(*k);});
-
+                [this, k]{ f_create_dialog_with_message_details(*k); });
         connect(item, &MessageItem::SIGNAL_rightButtonPressed,
-                [this, k, item]
-        {
-
-            if(k->type == QtDebugMsg)
-                m_debug.removeOne(k);
-            else if(k->type == QtInfoMsg)
-                m_info.removeOne(k);
-            else if(k->type == QtWarningMsg)
-                m_warning.removeOne(k);
-            else
-                m_critical.removeOne(k);
-
-            m_list.removeOne(QPair< QSharedPointer<MessageDetails>, MessageItem* >(k, item));
-            item->disconnect();
-            item->deleteLater();
-
-        });
+                [this, k, item]{ f_remove_item_from_list(k, item); });
     }
+}
+
+void QtMessageFilter::f_remove_item_from_list(QSharedPointer<MessageDetails> messageDetails, MessageItem* item)
+{
+    if(messageDetails.get()->type == QtDebugMsg)
+        m_debug.removeOne(messageDetails);
+    else if(messageDetails.get()->type == QtInfoMsg)
+        m_info.removeOne(messageDetails);
+    else if(messageDetails.get()->type == QtWarningMsg)
+        m_warning.removeOne(messageDetails);
+    else
+        m_critical.removeOne(messageDetails);
+
+    m_list.removeOne(QPair< QSharedPointer<MessageDetails>, MessageItem* >(messageDetails, item));
+    item->disconnect();
+    item->deleteLater();
 }
 
 void QtMessageFilter::slot_create_message_item(QSharedPointer<MessageDetails> messageDetails)
@@ -567,22 +589,7 @@ void QtMessageFilter::slot_create_message_item(QSharedPointer<MessageDetails> me
     connect(item, &MessageItem::SIGNAL_leftButtonReleased,
             [this, messageDetails]{f_create_dialog_with_message_details(*messageDetails);});
     connect(item, &MessageItem::SIGNAL_rightButtonPressed,
-            [this, messageDetails, item]
-    {
-
-        if(messageDetails.get()->type == QtDebugMsg)
-            m_debug.removeOne(messageDetails);
-        else if(messageDetails.get()->type == QtInfoMsg)
-            m_info.removeOne(messageDetails);
-        else if(messageDetails.get()->type == QtWarningMsg)
-            m_warning.removeOne(messageDetails);
-        else
-            m_critical.removeOne(messageDetails);
-
-        m_list.removeOne(QPair< QSharedPointer<MessageDetails>, MessageItem* >(messageDetails, item));
-        item->disconnect();
-        item->deleteLater();
-    });
+            [this, messageDetails, item]{ f_remove_item_from_list(messageDetails, item); });
 
     if((ulong)m_vertical_layout_scroll_area->count() > m_maximum_itens_size)
     {
