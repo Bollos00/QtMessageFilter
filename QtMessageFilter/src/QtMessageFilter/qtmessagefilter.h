@@ -124,7 +124,7 @@ Q_DECLARE_METATYPE(QSharedPointer<MessageDetails>)
 /// It is possible to omit or show some specific type of message by
 /// selecting the checkboxess on the top of the Dialog. The blue spider
 /// represents debug messages, the 'i' icon inside a green circle represents
-/// information messages, the '!' inside a triangle represents warning
+/// information messages, the '!' inside a yellow triangle represents warning
 /// messages and the 'x' inside a red circle represents critical messages.
 ///
 /// It is possible to show and hide the User Interface calling the functions
