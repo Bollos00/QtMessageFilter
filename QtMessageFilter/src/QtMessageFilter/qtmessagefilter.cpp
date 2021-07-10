@@ -1,7 +1,7 @@
 //
 // MIT License
 //
-// Copyright (c) 2020 Bollos00
+// Copyright (c) 2020-2021  Bruno Bollos Correa
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -31,16 +31,17 @@
 #include <QTimer>
 #include <QApplication>
 #include <QMutex>
+#include <QScrollBar>
 
 QtMessageFilter* QtMessageFilter::m_singleton_instance = nullptr;
 
 // For multi-thread safe
-QMutex mutex;
+QMutex qtMessageFilterMutex;
 
-void QtMessageFilter::resetInstance(QWidget* parent, bool hide)
+void QtMessageFilter::resetInstance(QWidget* parent, bool hide, const ulong maximumItensSize, const ulong maximumMessageDetailsSize)
 {
     delete QtMessageFilter::m_singleton_instance;
-    QtMessageFilter::m_singleton_instance = new QtMessageFilter(parent);
+    QtMessageFilter::m_singleton_instance = new QtMessageFilter(parent, maximumItensSize, maximumMessageDetailsSize);
 
     if(!hide)
         QtMessageFilter::showDialog();
@@ -130,7 +131,7 @@ void QtMessageFilter::reject()
     this->hide();
 }
 
-QtMessageFilter::QtMessageFilter(QWidget *parent)
+QtMessageFilter::QtMessageFilter(QWidget *parent, const ulong maximumItensSize, const ulong maximumMessageDetailsSize)
     : QDialog(parent),
       m_debug(),
       m_info(),
@@ -152,8 +153,8 @@ QtMessageFilter::QtMessageFilter(QWidget *parent)
       m_current_dialog_vertical_layout(new QVBoxLayout(m_current_dialog)),
       m_current_dialog_text(new QPlainTextEdit(m_current_dialog)),
       m_log_file(new QFile()),
-      m_maximum_itens_size(100),
-      m_maximum_message_details_size(100)
+      m_maximum_itens_size(maximumItensSize),
+      m_maximum_message_details_size(maximumMessageDetailsSize)
 {
     f_configure_ui();
 
@@ -257,7 +258,7 @@ void QtMessageFilter::f_configure_ui()
     this->setLayout(m_vertical_layout_global);
 
     // Maximum and minimum sizes of the dialog
-    this->setMaximumSize(800, 1200);
+    this->setMaximumSize(800, 1600);
     this->setMinimumSize(400, 500);
 
     // This looks unecessary, I shall investigate another option
@@ -302,12 +303,12 @@ void QtMessageFilter::f_configure_ui()
 
 void QtMessageFilter::f_message_filter(const QtMsgType type, const QMessageLogContext& context, const QString& msg)
 {
-    mutex.lock();
+    qtMessageFilterMutex.lock();
 
     if(QtMessageFilter::good())
         QtMessageFilter::f_instance()->f_message_output(type, context, msg);
 
-    mutex.unlock();
+    qtMessageFilterMutex.unlock();
 }
 
 void QtMessageFilter::f_message_output(const QtMsgType type,
@@ -553,7 +554,6 @@ void QtMessageFilter::f_remove_item_from_list(QSharedPointer<MessageDetails> mes
 
 void QtMessageFilter::slot_create_message_item(QSharedPointer<MessageDetails> messageDetails)
 {
-    MessageItem* item = new MessageItem(m_widget_scroll_area);
     QString styleSheet;
 
     switch(messageDetails->type)
@@ -578,12 +578,25 @@ void QtMessageFilter::slot_create_message_item(QSharedPointer<MessageDetails> me
             return;
     }
 
+    MessageItem* item = new MessageItem(m_widget_scroll_area);
+
     item->setText(messageDetails->message);
     item->setStyleSheet(styleSheet);
     m_list.append(QPair< QSharedPointer<MessageDetails>, MessageItem* >(messageDetails, item));
     item->adjustSize();
     m_vertical_layout_scroll_area->addWidget(item);
     item->show();
+
+    // Force update of the list of messages
+    qApp->processEvents();
+
+    // If the item further below is visible, make sure the new item continues visible as well
+    const bool lockDownertical = m_scroll_area->verticalScrollBar()->maximum() - m_scroll_area->verticalScrollBar()->value() < 50;
+
+    if(lockDownertical)
+    {
+        m_scroll_area->verticalScrollBar()->setValue(m_scroll_area->verticalScrollBar()->maximum());
+    }
 
     // Is this the best way of doing it?
     connect(item, &MessageItem::SIGNAL_leftButtonReleased,
