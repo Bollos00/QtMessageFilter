@@ -1,7 +1,7 @@
 //
 // MIT License
 //
-// Copyright (c) 2020 Bollos00
+// Copyright (c) 2020-2021  Bruno Bollos Correa
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -144,7 +144,7 @@ class QtMessageFilter : public QDialog
 
 public:
 
-    static void resetInstance(QWidget* parent = nullptr, bool hideDialog = false);
+    static void resetInstance(QWidget* parent = nullptr, bool hideDialog = false, const ulong maximumItensSize = 100, const ulong maximumMessageDetailsSize = 10);
     static void releaseInstance();
     static bool good();
 
@@ -163,7 +163,7 @@ protected:
 
 private:
 
-    QtMessageFilter(QWidget *parent = nullptr);
+    QtMessageFilter(QWidget *parent = nullptr, const ulong maximumItensSize = 100, const ulong maximumMessageDetailsSize = 10);
     QtMessageFilter(const QtMessageFilter& that) = delete;
     QtMessageFilter(QtMessageFilter&& that) = delete;
     ~QtMessageFilter();

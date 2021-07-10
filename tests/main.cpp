@@ -1,6 +1,6 @@
 // MIT License
 
-// Copyright (c) 2020 Bollos00
+// Copyright (c) 2020-2021  Bruno Bollos Correa
 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -28,6 +28,10 @@
 #include <QMainWindow>
 #include <QLabel>
 #include <QPushButton>
+
+
+// Set there the maximum number of items
+const int MAXIMUM_ITEMS_SIZE = 10;
 
 class TestWidget : public QMainWindow
 {
@@ -72,7 +76,7 @@ public:
            if(QtMessageFilter::good())
                QtMessageFilter::releaseInstance();
            else
-               QtMessageFilter::resetInstance(this);
+               QtMessageFilter::resetInstance(this, false, MAXIMUM_ITEMS_SIZE);
         });
 
     }
@@ -94,7 +98,7 @@ int main(int argc, char *argv[])
     QApplication a(argc, argv);
 
     TestWidget* w = new TestWidget();
-    QtMessageFilter::resetInstance(w, true);
+    QtMessageFilter::resetInstance(w, true, MAXIMUM_ITEMS_SIZE);
 
     QTimer* tmr = new QTimer();
     QObject::connect(tmr, &QTimer::timeout,
@@ -103,19 +107,21 @@ int main(int argc, char *argv[])
         static int k=0;
 
         if(k%4 == 0)
+        {
             qDebug()<<"Teste "<< k;
+        }
         else if(k%4 == 1)
+        {
             qInfo()<<"Teste "<< k<<'\n'<<"A great line of text, but a big, very and very big line of text, lot of characteres in one single line";
+        }
         else if(k%4 == 2)
+        {
             qWarning()<<"Teste "<< k<<'\n'<<"Another line here";
+        }
         else
+        {
             qCritical()<<"Teste "<< k;
-
-//        if(k%20 == 9)
-//            QtMessageFilter::hideDialog();
-
-//        if(k%20 == 19)
-//            QtMessageFilter::showDialog();
+        }
 
         k++;
     });
