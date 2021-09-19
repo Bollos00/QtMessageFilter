@@ -27,16 +27,13 @@
 
 #include <QDebug>
 #include <QShortcut>
+#include <QApplication>
 #include <QClipboard>
 #include <QTimer>
-#include <QApplication>
 #include <QMutex>
 #include <QScrollBar>
 
 QtMessageFilter* QtMessageFilter::m_singleton_instance = nullptr;
-
-// For multi-thread safe
-QMutex qtMessageFilterMutex;
 
 void QtMessageFilter::resetInstance(QWidget* parent, bool hide, const ulong maximumItensSize, const ulong maximumMessageDetailsSize)
 {
@@ -267,23 +264,23 @@ void QtMessageFilter::f_configure_ui()
     //  on the current state.
     // This signal is emmited whenever the state of the checkbox changes
     connect(m_cb_debug, &QCheckBox::stateChanged,
-            [this]{ if(m_cb_debug->isChecked()) f_set_message_of_type(QtDebugMsg); else f_unset_message_of_type(QtDebugMsg); });
+            this, [this]{ if(m_cb_debug->isChecked()) f_set_message_of_type(QtDebugMsg); else f_unset_message_of_type(QtDebugMsg); });
     connect(m_cb_info, &QCheckBox::stateChanged,
-            [this]{ if(m_cb_info->isChecked()) f_set_message_of_type(QtInfoMsg); else f_unset_message_of_type(QtInfoMsg);} );
+            this, [this]{ if(m_cb_info->isChecked()) f_set_message_of_type(QtInfoMsg); else f_unset_message_of_type(QtInfoMsg);} );
     connect(m_cb_warning, &QCheckBox::stateChanged,
-            [this]{ if(m_cb_warning->isChecked()) f_set_message_of_type(QtWarningMsg); else f_unset_message_of_type(QtWarningMsg); });
+            this, [this]{ if(m_cb_warning->isChecked()) f_set_message_of_type(QtWarningMsg); else f_unset_message_of_type(QtWarningMsg); });
     connect(m_cb_critical, &QCheckBox::stateChanged,
-            [this]{ if(m_cb_critical->isChecked()) f_set_message_of_type(QtCriticalMsg); else f_unset_message_of_type(QtCriticalMsg); });
+            this, [this]{ if(m_cb_critical->isChecked()) f_set_message_of_type(QtCriticalMsg); else f_unset_message_of_type(QtCriticalMsg); });
 
     // Connect shortcuts to change the state of the checkboxes
     connect(new QShortcut(QKeySequence(Qt::Key_D), this), &QShortcut::activated,
-            [this]{ m_cb_debug->setChecked(!m_cb_debug->isChecked()); });
+            this, [this]{ m_cb_debug->setChecked(!m_cb_debug->isChecked()); });
     connect(new QShortcut(QKeySequence(Qt::Key_I), this), &QShortcut::activated,
-            [this]{ m_cb_info->setChecked(!m_cb_info->isChecked()); });
+            this, [this]{ m_cb_info->setChecked(!m_cb_info->isChecked()); });
     connect(new QShortcut(QKeySequence(Qt::Key_W), this), &QShortcut::activated,
-            [this]{ m_cb_warning->setChecked(!m_cb_warning->isChecked()); });
+            this, [this]{ m_cb_warning->setChecked(!m_cb_warning->isChecked()); });
     connect(new QShortcut(QKeySequence(Qt::Key_C), this), &QShortcut::activated,
-            [this]{ m_cb_critical->setChecked(!m_cb_critical->isChecked()); });
+            this, [this]{ m_cb_critical->setChecked(!m_cb_critical->isChecked()); });
 
 
 
@@ -303,12 +300,8 @@ void QtMessageFilter::f_configure_ui()
 
 void QtMessageFilter::f_message_filter(const QtMsgType type, const QMessageLogContext& context, const QString& msg)
 {
-    qtMessageFilterMutex.lock();
-
     if(QtMessageFilter::good())
         QtMessageFilter::f_instance()->f_message_output(type, context, msg);
-
-    qtMessageFilterMutex.unlock();
 }
 
 void QtMessageFilter::f_message_output(const QtMsgType type,
@@ -530,9 +523,9 @@ void QtMessageFilter::f_set_message_of_type(const QtMsgType typeMessage)
 
         // Is this the best way of doing it?
         connect(item, &MessageItem::SIGNAL_leftButtonReleased,
-                [this, k]{ f_create_dialog_with_message_details(*k); });
+                this, [this, k]{ f_create_dialog_with_message_details(*k); });
         connect(item, &MessageItem::SIGNAL_rightButtonPressed,
-                [this, k, item]{ f_remove_item_from_list(k, item); });
+                this, [this, k, item]{ f_remove_item_from_list(k, item); });
     }
 }
 
@@ -588,7 +581,7 @@ void QtMessageFilter::slot_create_message_item(QSharedPointer<MessageDetails> me
     item->show();
 
     // Force update of the list of messages
-    qApp->processEvents();
+//    qApp->processEvents();
 
     // If the item further below is visible, make sure the new item continues visible as well
     const bool lockDownertical = m_scroll_area->verticalScrollBar()->maximum() - m_scroll_area->verticalScrollBar()->value() < 50;
@@ -600,9 +593,9 @@ void QtMessageFilter::slot_create_message_item(QSharedPointer<MessageDetails> me
 
     // Is this the best way of doing it?
     connect(item, &MessageItem::SIGNAL_leftButtonReleased,
-            [this, messageDetails]{f_create_dialog_with_message_details(*messageDetails);});
+            this, [this, messageDetails]{f_create_dialog_with_message_details(*messageDetails);});
     connect(item, &MessageItem::SIGNAL_rightButtonPressed,
-            [this, messageDetails, item]{ f_remove_item_from_list(messageDetails, item); });
+            this, [this, messageDetails, item]{ f_remove_item_from_list(messageDetails, item); });
 
     if((ulong)m_vertical_layout_scroll_area->count() > m_maximum_itens_size)
     {
@@ -630,9 +623,8 @@ void MessageItem::mousePressEvent(QMouseEvent* e)
         this->setStyleSheet(this->styleSheet().replace("background-color : black", "background-color : blue", Qt::CaseInsensitive));
 
         m_tmr_pressed.reset(new QTimer());
-        connect(m_tmr_pressed.get(),
-                &QTimer::timeout,
-                [this]
+        connect(m_tmr_pressed.get(), &QTimer::timeout,
+                this, [this]
         {
             QApplication::clipboard()->setText(this->text());
             m_tmr_pressed->stop();

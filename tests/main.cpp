@@ -31,7 +31,7 @@
 
 
 // Set there the maximum number of items
-const int MAXIMUM_ITEMS_SIZE = 10;
+const int MAXIMUM_ITEMS_SIZE = 100;
 
 class TestWidget : public QMainWindow
 {
