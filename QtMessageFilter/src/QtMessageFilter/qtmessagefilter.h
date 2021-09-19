@@ -91,11 +91,11 @@ public:
 private:
     QScopedPointer<QTimer> m_tmr_pressed;
 
-private slots:
+private Q_SLOTS:
     void mousePressEvent(QMouseEvent *e = nullptr);
     void mouseReleaseEvent(QMouseEvent *e = nullptr);
 
-signals:
+Q_SIGNALS:
     void SIGNAL_leftButtonPressed();
     void SIGNAL_leftButtonReleased();
     void SIGNAL_rightButtonPressed();
@@ -229,8 +229,10 @@ private:
 
 private Q_SLOTS:
     void slot_create_message_item(QSharedPointer<MessageDetails> messageDetails);
+    void slot_fatal_message(const QString& msg);
 
 Q_SIGNALS:
     void signal_create_message_item(QSharedPointer<MessageDetails> messageDetails);
+    void signal_fatal_message(const QString& msg);
 };
 #endif // MESSAGEFILTERQT_H

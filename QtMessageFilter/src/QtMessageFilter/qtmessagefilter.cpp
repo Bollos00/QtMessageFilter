@@ -32,6 +32,7 @@
 #include <QTimer>
 #include <QMutex>
 #include <QScrollBar>
+#include <QMessageBox>
 
 QtMessageFilter* QtMessageFilter::m_singleton_instance = nullptr;
 
@@ -164,7 +165,11 @@ QtMessageFilter::QtMessageFilter(QWidget *parent, const ulong maximumItensSize, 
             this, &QtMessageFilter::slot_create_message_item,
             Qt::QueuedConnection);
 
-    // Remove last log file, current a new one and let it be opened
+    connect(this, &QtMessageFilter::signal_fatal_message,
+            this, &QtMessageFilter::slot_fatal_message,
+            Qt::QueuedConnection);
+
+    // Remove last log file, create a new one and let it be opened
     m_log_file->setFileName("QtMessageFilterLog.txt");
     if(m_log_file->remove())
         m_log_file->setFileName("QtMessageFilterLog.txt");
@@ -381,12 +386,19 @@ void QtMessageFilter::f_message_output(const QtMsgType type,
             break;
 
         case QtFatalMsg:
+
             streamLog << "\\fatal\\id" << messageInfo->id << ": \n" <<
                          messageInfo->message + '\n';
             streamLog << ">>>>>>>>>>>>>>>" << messageInfo->id << ">>>>>>>>>>>>>>>\n";
 
-            qFatal("%s", QString("Fatal: " + msg).toLatin1().data());
-            return; // Note: never gets here, end on fatal (line above)
+            // emit the signal to create a dialog message box showing the fatal error message
+            Q_EMIT signal_fatal_message(msg);
+
+            // Waits for the message to be closed and the application terminated
+            QEventLoop loop;
+            loop.exec();
+
+            return;
     }
 
 
@@ -396,10 +408,10 @@ void QtMessageFilter::f_message_output(const QtMsgType type,
 //    }
 //    else
 //    {
-//        emit signal_create_message_item(messageInfo);
+//        Q_EMIT signal_create_message_item(messageInfo);
 //    }
 
-    emit signal_create_message_item(messageInfo);
+    Q_EMIT signal_create_message_item(messageInfo);
 }
 
 void QtMessageFilter::f_create_dialog_with_message_details(const MessageDetails& details)
@@ -604,6 +616,18 @@ void QtMessageFilter::slot_create_message_item(QSharedPointer<MessageDetails> me
     }
 }
 
+void QtMessageFilter::slot_fatal_message(const QString &msg)
+{
+    QMessageBox::critical(this, "QtMessageFilter",
+                          QString("A fatal error have ocurred, so the program will be terminated."
+                                  " The error message is shown below.\n\n\"%1\"\n\n"
+                                  "For more details, see the file QtMessageFilterLog.txt.").arg(msg));
+
+//    exit(EXIT_FAILURE);
+    // Exits with failure code.
+    qApp->exit(1);
+}
+
 
 MessageItem::MessageItem(QWidget* parent):
     QLabel(parent),
@@ -634,11 +658,11 @@ void MessageItem::mousePressEvent(QMouseEvent* e)
         });
         m_tmr_pressed->start(500);
 
-        emit SIGNAL_leftButtonPressed();
+        Q_EMIT SIGNAL_leftButtonPressed();
     }
     else if(e->button() == Qt::RightButton)
     {
-        emit SIGNAL_rightButtonPressed();
+        Q_EMIT SIGNAL_rightButtonPressed();
     }
 }
 
@@ -652,7 +676,7 @@ void MessageItem::mouseReleaseEvent(QMouseEvent* e)
             m_tmr_pressed->disconnect();
             m_tmr_pressed.reset();
             this->setStyleSheet(this->styleSheet().replace("background-color : blue", "background-color : black", Qt::CaseInsensitive));
-            emit SIGNAL_leftButtonReleased();
+            Q_EMIT SIGNAL_leftButtonReleased();
         }
     }
 }
