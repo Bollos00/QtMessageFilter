@@ -71,7 +71,7 @@ public:
         });
 
         connect(pb1, &QPushButton::clicked,
-                [this]
+                this, [this]
         {
            if(QtMessageFilter::good())
                QtMessageFilter::releaseInstance();
@@ -102,10 +102,15 @@ int main(int argc, char *argv[])
 
     QTimer* tmr = new QTimer();
     QObject::connect(tmr, &QTimer::timeout,
-                     []
+                     w, []
     {
         static int k=0;
 
+//        if(k == 7)
+//        {
+//            qFatal("Fatal error");
+//        }
+//        else
         if(k%4 == 0)
         {
             qDebug()<<"Teste "<< k;
