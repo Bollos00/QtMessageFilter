@@ -391,6 +391,8 @@ void QtMessageFilter::f_message_output(const QtMsgType type,
                          messageInfo->message + '\n';
             streamLog << ">>>>>>>>>>>>>>>" << messageInfo->id << ">>>>>>>>>>>>>>>\n";
 
+            streamLog.flush();
+
             // emit the signal to create a dialog message box showing the fatal error message
             Q_EMIT signal_fatal_message(msg);
 
