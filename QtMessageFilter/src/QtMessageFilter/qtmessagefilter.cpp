@@ -588,9 +588,9 @@ void QtMessageFilter::slot_create_message_item(QSharedPointer<MessageDetails> me
     item->setText(messageDetails->message);
     item->setStyleSheet(styleSheet);
     m_list.append(QPair< QSharedPointer<MessageDetails>, MessageItem* >(messageDetails, item));
-    item->adjustSize();
     m_vertical_layout_scroll_area->addWidget(item);
     item->show();
+    item->adjustSize();
 
     // Force update of the list of messages
 //    qApp->processEvents();
